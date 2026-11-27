@@ -7,6 +7,7 @@ const stepSchema = z.object({
   distance: z.number().min(0),
   duration: z.number().min(0),
   name: z.string().optional(),
+  ref: z.string().optional(),
   maneuver: z.object({
     location: coordinateSchema,
     type: z.string(),
@@ -36,14 +37,25 @@ export const osrmSchema = z.object({
     .min(1)
     .max(8),
 });
+/** Coerce a provider number (LocationIQ/Nominatim send strings) but reject blank
+ * or null values, which `z.coerce.number()` would otherwise turn into 0 — a
+ * result at 0°, 0° in the Gulf of Guinea (GEO-005). */
+const providerNumber = (min: number, max: number) =>
+  z.preprocess(
+    (v) =>
+      v === null || v === undefined || (typeof v === "string" && v.trim() === "")
+        ? Number.NaN
+        : v,
+    z.coerce.number().min(min).max(max),
+  );
 export const geocoderSchema = z
   .array(
     z.object({
       place_id: z.union([z.string(), z.number()]),
       name: z.string().optional(),
       display_name: z.string().min(1),
-      lon: z.coerce.number().min(-180).max(180),
-      lat: z.coerce.number().min(-90).max(90),
+      lon: providerNumber(-180, 180),
+      lat: providerNumber(-90, 90),
       type: z.string().optional(),
     }),
   )

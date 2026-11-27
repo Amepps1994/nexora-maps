@@ -39,16 +39,31 @@ import {
   type TrafficDisruption,
 } from "@/shared/nexora/traffic";
 import { Badge, Button, Icon, IconButton, palette } from "./ui";
+import { StepList } from "./StepList";
+import { a11yColors, isDemoOrigin, originNotice } from "./screen-logic";
 import { useOfflineRegions } from "@/hooks/use-offline-regions";
 import { OFFLINE_REGIONS, formatBytes } from "@/shared/nexora/offline";
 export type AppModel = ReturnType<typeof useNexora>;
+/** Live GPS start flow owned by NexoraApp (one-time acknowledgement). */
+export type LiveStartUi = {
+  ackOpen: boolean;
+  requestLive: () => void;
+  acceptLive: () => void;
+  cancelLive: () => void;
+};
 export function Panels({
   n,
   traffic,
+  live,
 }: {
   n: AppModel;
   traffic?: TrafficModel;
+  live?: LiveStartUi;
 }) {
+  const [showSteps, setShowSteps] = useState(false);
+  const [showAbout, setShowAbout] = useState(false);
+  // BUG-006 (UI part): the query the provider results on screen belong to.
+  const [searchedFor, setSearchedFor] = useState("");
   const offline = useOfflineRegions();
   const [deleteConfirm, setDeleteConfirm] = useState(false);
   const trafficDisruptions = traffic?.disruptions;
@@ -77,10 +92,43 @@ export function Panels({
   const ink = dark ? "#EDF4F1" : palette.ink;
   const muted = dark ? "#A0B4AF" : palette.muted;
   const surface = dark ? "#152235" : "#fff";
+  const colors = a11yColors(dark);
+  const formatDistance = (m: number) => distanceLabel(m, n.prefs.metric);
+  const runLiveSearch = () => {
+    setSearchedFor(n.query.trim());
+    n.liveSearch();
+  };
+  const staleResults =
+    Boolean(n.searchResults) &&
+    searchedFor !== "" &&
+    n.query.trim() !== searchedFor;
+  const disclosure = (
+    label: string,
+    open: boolean,
+    onPress: () => void,
+  ) => (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityState={{ expanded: open }}
+      onPress={onPress}
+      style={s.disclosure}
+    >
+      <Text style={[s.linkText, { color: dark ? "#62D6BB" : palette.teal }]}>
+        {label}
+      </Text>
+      <Icon
+        name={open ? "chevron-up" : "chevron-down"}
+        size={18}
+        color={dark ? "#62D6BB" : palette.teal}
+      />
+    </Pressable>
+  );
   const heading = (title: string, subtitle?: string) => (
     <View style={s.heading}>
       <View style={{ flex: 1 }}>
-        <Text style={[s.title, { color: ink }]}>{title}</Text>
+        <Text accessibilityRole="header" style={[s.title, { color: ink }]}>
+          {title}
+        </Text>
         {subtitle && (
           <Text style={[s.subtitle, { color: muted }]}>{subtitle}</Text>
         )}
@@ -167,7 +215,7 @@ export function Panels({
         accessibilityLabel={name}
         value={value}
         onValueChange={onChange}
-        trackColor={{ false: "#CBD5D1", true: palette.teal }}
+        trackColor={{ false: colors.switchTrackOff, true: palette.teal }}
       />
     </View>
   );
@@ -362,10 +410,12 @@ export function Panels({
             value={n.query}
             onChangeText={(q) => {
               n.setQuery(q);
-              n.setSearchResults(null);
+              // Keep the last provider results on screen while typing; they
+              // are labelled as out of date until Search runs again.
+              if (!q.trim()) n.setSearchResults(null);
             }}
             onSubmitEditing={
-              n.capabilities?.search?.configured ? n.liveSearch : undefined
+              n.capabilities?.search?.configured ? runLiveSearch : undefined
             }
             style={[s.input, { color: ink }]}
             returnKeyType="search"
@@ -373,16 +423,27 @@ export function Panels({
           {n.query.length > 0 && (
             <Pressable
               style={s.smallTap}
+              accessibilityRole="button"
               accessibilityLabel="Clear search"
-              onPress={() => n.setQuery("")}
+              onPress={() => {
+                n.setQuery("");
+                n.setSearchResults(null);
+              }}
             >
               <Icon name="x" size={18} color={muted} />
             </Pressable>
           )}
         </View>
         <View style={s.between}>
-          <Text style={[s.eyebrow, { color: muted }]}>
-            {n.searchResults
+          <Text
+            accessibilityLiveRegion="polite"
+            style={[s.eyebrow, { color: muted }]}
+          >
+            {n.busy && n.searchResults
+              ? "SEARCHING…"
+              : staleResults
+                ? `RESULTS FOR “${searchedFor.toUpperCase()}” · PRESS SEARCH TO UPDATE`
+                : n.searchResults
               ? "CONFIGURED PROVIDER RESULTS"
               : n.query
                 ? "DEMO CATALOGUE RESULTS"
@@ -432,7 +493,7 @@ export function Panels({
           disabled={
             !n.capabilities?.search?.configured || n.query.length < 3 || n.busy
           }
-          onPress={n.liveSearch}
+          onPress={runLiveSearch}
           secondary
           dark={dark}
           icon="globe"
@@ -533,6 +594,56 @@ export function Panels({
         )}
       </>
     );
+  else if (n.panel === "routes" && live?.ackOpen)
+    body = (
+      <>
+        {heading(
+          "Before you use live GPS",
+          "Please read this once for this version of the app.",
+        )}
+        {row(
+          "Not yet verified on a phone",
+          "Live guidance has not passed its physical-device tests. Directions or timing may be wrong.",
+          "alert-triangle",
+        )}
+        {row(
+          "Keep your eyes on the road",
+          "Set the route before you move. Obey road signs and traffic rules over the app.",
+          "eye",
+        )}
+        {row(
+          "No live traffic or speed limits",
+          "Times are free-flow estimates. The app only works while it is open on screen.",
+          "info",
+        )}
+        <Button
+          title="Start simulation instead"
+          icon="play"
+          onPress={() => {
+            live.cancelLive();
+            n.start("simulation");
+          }}
+        />
+        <Button
+          title="I understand, start live GPS"
+          icon="navigation"
+          secondary
+          dark={dark}
+          onPress={live.acceptLive}
+        />
+        <Pressable
+          accessibilityRole="button"
+          onPress={live.cancelLive}
+          style={s.link}
+        >
+          <Text
+            style={[s.linkText, { color: dark ? "#62D6BB" : palette.teal }]}
+          >
+            Back to routes
+          </Text>
+        </Pressable>
+      </>
+    );
   else if (n.panel === "routes")
     body = (
       <>
@@ -562,7 +673,9 @@ export function Panels({
               <Text style={[s.tiny, { color: muted }]}>
                 {n.origin.id === "device-position"
                   ? "Device fix"
-                  : "Manual origin"}
+                  : isDemoOrigin(n.origin)
+                    ? "Default demo origin · tap to change"
+                    : "Manual origin"}
               </Text>
             </Pressable>
             {n.stops.map((stop, i) => (
@@ -635,6 +748,34 @@ export function Panels({
             onPress={n.swapEndpoints}
           />
         </View>
+        {originNotice(n.origin) && (
+          <View style={[s.between, { flexWrap: "wrap" }]}>
+            <Text style={[s.originNotice, { color: ink }]}>
+              {originNotice(n.origin)}
+            </Text>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Use my location as the starting point"
+              disabled={n.busy}
+              onPress={n.locate}
+              style={[s.addStop, { opacity: n.busy ? 0.45 : 1 }]}
+            >
+              <Icon
+                name="crosshair"
+                size={18}
+                color={dark ? "#62D6BB" : palette.teal}
+              />
+              <Text
+                style={[
+                  s.linkText,
+                  { color: dark ? "#62D6BB" : palette.teal },
+                ]}
+              >
+                Use my location
+              </Text>
+            </Pressable>
+          </View>
+        )}
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={
@@ -806,6 +947,7 @@ export function Panels({
                   <View
                     style={[
                       s.radio,
+                      { borderColor: colors.radioRing },
                       n.route?.id === r.id && {
                         borderColor: palette.teal,
                         backgroundColor: palette.teal,
@@ -990,24 +1132,34 @@ export function Panels({
                 routeMode: v ? "locked" : "automatic",
               }))
             }
-            trackColor={{ false: "#CAD7D0", true: palette.teal }}
+            trackColor={{ false: colors.switchTrackOff, true: palette.teal }}
           />
         </View>
         {n.route && (
           <>
+            {disclosure(
+              showSteps
+                ? "Hide steps"
+                : `View ${n.route.steps.length} steps as a list`,
+              showSteps,
+              () => setShowSteps((v) => !v),
+            )}
+            {showSteps && (
+              <StepList
+                route={n.route}
+                formatDistance={formatDistance}
+                dark={dark}
+              />
+            )}
             {!n.route.demo && (
-              <>
-                <Button
-                  title="Start live GPS guidance"
-                  icon="navigation"
-                  disabled={n.busy || n.error.includes("Recalculate")}
-                  onPress={() => n.start("live")}
-                />
-                {note(
-                  "LIVE GPS · UNVERIFIED FOR ROAD USE · Follows your phone's GPS with spoken turns while the app is open. Not yet tested on a physical device: obey road signs and keep your eyes on the road. No live traffic or speed limits.",
-                  true,
-                )}
-              </>
+              <Button
+                title="Start live GPS guidance"
+                icon="navigation"
+                disabled={n.busy || n.error.includes("Recalculate")}
+                onPress={() =>
+                  live ? live.requestLive() : n.start("live")
+                }
+              />
             )}
             <Button
               title="Start simulation"
@@ -1020,27 +1172,47 @@ export function Panels({
             {note(
               n.route.demo
                 ? "SIMULATION ONLY · Synthetic demo route; live GPS guidance needs a provider route. Never use this preview for road guidance."
-                : "Simulation replays the route on screen with voice, without using your location.",
-              n.route.demo,
+                : "LIVE GPS · UNVERIFIED FOR ROAD USE · Not yet tested on a physical device. Obey road signs and keep your eyes on the road.",
+              true,
             )}
           </>
         )}
-        <Pressable
-          accessibilityRole="button"
-          onPress={() => n.calculate(true)}
-          disabled={n.busy}
-          style={s.link}
-        >
-          <Text
-            style={[s.linkText, { color: dark ? "#62D6BB" : palette.teal }]}
-          >
-            Use explicitly synthetic demo instead
-          </Text>
-        </Pressable>
-        <Text style={[s.tiny, { color: muted }]}>
-          Stops are visited in the order shown; order optimisation and time
-          windows are not available. Times are UK time.
-        </Text>
+        {disclosure("About these results", showAbout, () =>
+          setShowAbout((v) => !v),
+        )}
+        {showAbout && (
+          <View style={{ gap: 10 }}>
+            {n.route &&
+              !n.route.demo &&
+              note(
+                "Live GPS follows your phone's GPS with spoken turns while the app is open. No live traffic or speed limits.",
+              )}
+            {n.route &&
+              !n.route.demo &&
+              note(
+                "Simulation replays the route on screen with voice, without using your location.",
+              )}
+            <Text style={[s.tiny, { color: muted }]}>
+              Stops are visited in the order shown; order optimisation and time
+              windows are not available. Times are UK time.
+            </Text>
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => n.calculate(true)}
+              disabled={n.busy}
+              style={s.link}
+            >
+              <Text
+                style={[
+                  s.linkText,
+                  { color: dark ? "#62D6BB" : palette.teal },
+                ]}
+              >
+                Use explicitly synthetic demo instead
+              </Text>
+            </Pressable>
+          </View>
+        )}
       </>
     );
   else if (n.panel === "layers")
@@ -1537,6 +1709,32 @@ export function Panels({
           "This development build offers simulated navigation and foreground live GPS guidance that is not yet verified for road use. Full offline routing is not enabled.",
           true,
         )}
+        <View
+          style={[
+            s.privacyHero,
+            { backgroundColor: dark ? "#223247" : "#F2F6F4" },
+          ]}
+        >
+          <Text style={[s.rowTitle, { color: ink }]}>
+            Start routes from where you are
+          </Text>
+          <Text style={[s.rowDetail, { color: muted }]}>
+            Without your location, routes start from King&apos;s Cross, a demo
+            point. NEXORA asks for your location only while the app is open, to
+            set your starting point. It is not saved as history. You can skip
+            this and search or pin a start point instead.
+          </Text>
+          <Button
+            title="Use my location"
+            icon="crosshair"
+            dark={dark}
+            onPress={() => {
+              n.setPrefs((p) => ({ ...p, onboardingSeen: true }));
+              n.setPanel(null);
+              n.locate();
+            }}
+          />
+        </View>
         <Button
           title="Continue as guest"
           onPress={() => {
@@ -1652,6 +1850,14 @@ export const s = StyleSheet.create({
     backgroundColor: "#087F73",
   },
   originRow: { minHeight: 48, justifyContent: "center" },
+  originNotice: { fontSize: 13, lineHeight: 19, fontWeight: "600", flexShrink: 1 },
+  disclosure: {
+    minHeight: 48,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 8,
+  },
   originText: { fontSize: 14, fontWeight: "600" },
   tiny: { fontSize: 10, lineHeight: 15, marginTop: 4 },
   modeRow: { flexDirection: "row", gap: 8 },
@@ -1675,7 +1881,6 @@ export const s = StyleSheet.create({
     width: 17,
     height: 17,
     borderWidth: 1.5,
-    borderColor: "#AABBB2",
     borderRadius: 9,
   },
   routeExplain: { fontSize: 12, lineHeight: 18, marginTop: 5 },
