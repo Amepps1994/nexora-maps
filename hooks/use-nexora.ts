@@ -536,9 +536,16 @@ export function useNexora() {
       return;
     }
     if (permission === "blocked") {
-      setToast("Location is blocked for NEXORA. Opening app settings.");
-      Linking.openSettings().catch(() => {});
-      return;
+      // The user may have allowed it in system settings since; re-check before
+      // sending them there again.
+      const current = await Location.getForegroundPermissionsAsync().catch(
+        () => null,
+      );
+      if (!current || (current.status !== "granted" && !current.canAskAgain)) {
+        setToast("Location is blocked for NEXORA. Opening app settings.");
+        Linking.openSettings().catch(() => {});
+        return;
+      }
     }
     const token = ++locationGeneration.current;
     setPermission("requesting");
@@ -563,12 +570,23 @@ export function useNexora() {
       }
       // A cold GPS can take a long time; fall back to the last known position
       // (if recent) rather than leaving the button spinning forever.
-      const fix = await Promise.race([
-        Location.getCurrentPositionAsync({
-          accuracy: Location.Accuracy.Balanced,
-        }),
-        new Promise<null>((resolve) => setTimeout(() => resolve(null), 15000)),
-      ]).catch(() => null);
+      let rejected = false;
+      const ask = (options: Location.LocationOptions) =>
+        Promise.race([
+          Location.getCurrentPositionAsync(options),
+          new Promise<null>((resolve) => setTimeout(() => resolve(null), 15000)),
+        ]).catch(() => {
+          rejected = true;
+          return null;
+        });
+      let fix = await ask({ accuracy: Location.Accuracy.Balanced });
+      // Android: if the user declines Google's "Location Accuracy" prompt, the request
+      // is rejected even though GPS works. Retry once from GPS alone, without the prompt.
+      if (!fix && rejected && token === locationGeneration.current)
+        fix = await ask({
+          accuracy: Location.Accuracy.High,
+          mayShowUserSettingsDialog: false,
+        });
       const location =
         fix ??
         (await Location.getLastKnownPositionAsync({
@@ -659,13 +677,26 @@ export function useNexora() {
         };
       }
     }
-    setDeviceHealth(results);
     try {
       const r = await fetch(`${base}/api/nexora/capabilities`);
-      if (r.ok) setCapabilities(await r.json());
+      if (r.ok) {
+        const caps = await r.json();
+        // The server's record comes from these same probes but is stamped with the
+        // server's clock. If the device clock runs behind, that record would look newer
+        // and hide this device's measurement (and its timing), so let this refresh win.
+        const server: HealthMap = caps?.routing?.health ?? {};
+        for (const mode of ROUTING_PROFILES) {
+          const mine = results[mode];
+          const theirs = server[mode]?.checkedAt;
+          if (mine?.checkedAt && theirs && Date.parse(theirs) > Date.parse(mine.checkedAt))
+            results[mode] = { ...mine, checkedAt: theirs };
+        }
+        setCapabilities(caps);
+      }
     } catch {
-      /* device results above still stand */
+      /* device results below still stand */
     }
+    setDeviceHealth(results);
     setProviderRefreshing(false);
     setToast(providerHealthSummary(results));
   }

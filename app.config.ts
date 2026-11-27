@@ -57,9 +57,9 @@ const publicRuntime = {
     process.env.VITE_APP_ID ??
     process.env.EXPO_PUBLIC_APP_ID ??
     "",
-  // Native builds need an absolute API URL; fall back to the deployed backend when the
+  // Native builds need an absolute API URL; fall back to the Render-hosted backend (render.yaml) when the
   // EAS environment doesn't provide EXPO_PUBLIC_API_BASE_URL.
-  apiBaseUrl: process.env.EXPO_PUBLIC_API_BASE_URL || "https://nexora-4jxn4lnl.manus.space",
+  apiBaseUrl: process.env.EXPO_PUBLIC_API_BASE_URL || "https://nexora-api-cfoh.onrender.com",
 };
 
 // Car displays (docs/CAR_DISPLAYS.md). Android Auto is built in; CarPlay stays off until
