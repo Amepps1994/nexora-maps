@@ -32,3 +32,6 @@ Autocomplete/debounce (submit-only by design to stay inside the 5,000/day free q
 `https://nexora-api-cfoh.onrender.com` (render.yaml, free tier, key set in the Render dashboard only):
 `/api/nexora/capabilities` reports `search.configured: true, provider: LocationIQ`; `search?q=SW1A 1AA` returned SW1A 1AA, City of Westminster; `/api/nexora/map` 200; driving route King's Cross → Tate Modern returned OSRM geometry; offline London region `available: true` and `tiles.pmtiles` served in full (56,370,125 bytes).
 `app.config.ts` now falls back to this URL (no EAS `EXPO_PUBLIC_API_BASE_URL` is set for production). A native APK against it is not yet built or tested.
+
+## Native APK on the Android emulator, 27 Nov 2026 13:42 UTC
+EAS build fd60ec8d-0c69-4e01-adad-579ad9e48878 (production-apk, combined build of all threads), installed with `adb install -r` on emulator-5554. The first launch hit Render's cold-start page in the map view; after the service woke (~1 min) the relaunch loaded the map with TfL disruptions. Searched `SW1A 1AA` → LocationIQ result with attribution; selected it; Find routes from King's Cross returned a 14 min / 3.3 mi drive and the route drew on the map. Screenshots: `screenshots/apk-render-2026-11-27/`. No Manus backend involved.
