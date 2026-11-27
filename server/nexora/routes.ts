@@ -8,6 +8,7 @@ import {
   resolveGeocoder,
 } from "./geocoder";
 import { mapOsrmRoutes } from "./route-mapper";
+import { betterNamedSnap, suspectBikeEnds } from "./bike-snap";
 import {
   AVOIDANCES,
   checkAvoidances,
@@ -158,16 +159,50 @@ export function registerNexoraRoutes(app: Express) {
       res.status(422).json({ error: avoidance.reason, unsupported: true });
       return;
     }
-    const points = [origin, ...stops, destination]
-      .map((c) => c.join(","))
-      .join(";");
+    const coords: [number, number][] = [origin, ...stops, destination];
+    const points = coords.map((c) => c.join(",")).join(";");
     const exclude = avoidance.exclude.length
       ? `&exclude=${avoidance.exclude.join(",")}`
       : "";
+    const routeUrl = (pts: string) =>
+      `${routerUrls[mode]}/route/v1/driving/${pts}?steps=true&alternatives=true&geometries=geojson&overview=full${exclude}`;
     try {
-      const data = await providerFetch(
-        `${routerUrls[mode]}/route/v1/driving/${points}?steps=true&alternatives=true&geometries=geojson&overview=full${exclude}`,
-      );
+      let data = await providerFetch(routeUrl(points));
+      const resnapped: string[] = [];
+      if (mode === "cycling" && data.code === "Ok" && data.routes?.length) {
+        const suspects = suspectBikeEnds(data.routes[0], coords.length);
+        if (suspects.length) {
+          try {
+            const next = [...coords];
+            for (const i of suspects) {
+              const near = await providerFetch(
+                `${routerUrls.cycling}/nearest/v1/driving/${coords[i].join(",")}?number=3`,
+              );
+              const better = betterNamedSnap(near?.waypoints);
+              if (better) {
+                next[i] = better.location;
+                resnapped.push(
+                  `${i === 0 ? "start" : "destination"} snapped to ${better.name}`,
+                );
+              }
+            }
+            if (resnapped.length) {
+              const retry = await providerFetch(
+                routeUrl(next.map((c) => c.join(",")).join(";")),
+              );
+              if (
+                retry.code === "Ok" &&
+                retry.routes?.length &&
+                retry.routes[0].distance < data.routes[0].distance
+              )
+                data = retry;
+              else resnapped.length = 0;
+            }
+          } catch {
+            resnapped.length = 0; // keep the provider's original route
+          }
+        }
+      }
       if (data.code !== "Ok" || !data.routes?.length) {
         res.status(404).json({
           error:
@@ -188,6 +223,10 @@ export function registerNexoraRoutes(app: Express) {
       if (stops.length)
         notes.push(
           "Multi-stop requests are routed in the order shown. The test provider returned no alternatives with stops in our 27 Nov 2026 probe.",
+        );
+      if (resnapped.length)
+        notes.push(
+          `Cycling ${resnapped.join(" and ")}: the nearest path was a walking-only link that forced a detour.`,
         );
       if (avoidance.exclude.length)
         notes.push(
