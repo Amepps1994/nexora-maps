@@ -211,21 +211,14 @@ describe("traffic API", () => {
   const get = (path = "/api/nexora/traffic") => realFetch(`${base}${path}`);
 
   it("serves a live snapshot and caches it across clients", async () => {
-    // Pin the server clock to the capture time: one fixture record ends at 17:00Z on
-    // 27 Nov 2026, so the real clock made this test fail from that evening on.
-    const clock = vi.spyOn(Date, "now").mockReturnValue(at.getTime());
-    try {
-      const a = await get();
-      expect(a.status).toBe(200);
-      const body = await a.json();
-      expect(body.status).toBe("live");
-      expect(body.disruptions).toHaveLength(4);
-      expect(body.attribution[0]).toBe("Powered by TfL Open Data");
-      await get();
-      await get();
-    } finally {
-      clock.mockRestore();
-    }
+    const a = await get();
+    expect(a.status).toBe(200);
+    const body = await a.json();
+    expect(body.status).toBe("live");
+    expect(body.disruptions).toHaveLength(4);
+    expect(body.attribution[0]).toBe("Powered by TfL Open Data");
+    await get();
+    await get();
     expect(upstream).toHaveLength(1);
     expect(upstream[0]).toBe(
       "https://api.tfl.gov.uk/Road/all/Disruption?stripContent=true",
