@@ -1,6 +1,9 @@
-import React, { useMemo } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
+  AccessibilityInfo,
   ActivityIndicator,
+  BackHandler,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -19,6 +22,16 @@ import { useNexora } from "@/hooks/use-nexora";
 import { useTraffic } from "@/hooks/use-traffic";
 import { DEMO_PLACES } from "@/shared/nexora/fixtures";
 import { distanceLabel, durationLabel } from "@/shared/nexora/domain";
+import { StepList } from "./StepList";
+import { liveAckRequired, saveLiveAck } from "./live-ack";
+import {
+  a11yColors,
+  backAction,
+  nextAnnouncement,
+  serverBanner,
+  shouldAutoOpenOnboarding,
+  stepAnnouncement,
+} from "./screen-logic";
 
 const LIVE_LABEL: Record<string, string> = {
   acquiring: "Waiting for GPS…",
@@ -73,7 +86,6 @@ export default function NexoraApp() {
     [
       dark,
       desktop,
-      navHeight,
       n.prefs.reducedMotion,
       n.destination,
       n.stops,
@@ -92,6 +104,127 @@ export default function NexoraApp() {
     ["Settings", "sliders"],
   ] as const;
   const top = Math.max(insets.top, desktop ? 22 : 18);
+  const colors = a11yColors(dark);
+  const formatDistance = (m: number) => distanceLabel(m, n.prefs.metric);
+
+  // BUG-009: show the first-run sheet once, after local data has loaded.
+  const onboardingOpened = useRef(false);
+  useEffect(() => {
+    if (
+      shouldAutoOpenOnboarding(
+        n.hydrated,
+        n.prefs.onboardingSeen,
+        onboardingOpened.current,
+      )
+    ) {
+      onboardingOpened.current = true;
+      // Marked seen as soon as it is shown, so dismissing it also counts.
+      n.setPrefs((p) => ({ ...p, onboardingSeen: true }));
+      if (!n.panel) n.setPanel("onboard");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [n.hydrated, n.prefs.onboardingSeen]);
+
+  // UX-003: the first live GPS start per install and app version asks for an
+  // acknowledgement. Simulation is the default choice on that sheet.
+  const [liveAckOpen, setLiveAckOpen] = useState(false);
+  const liveUi = {
+    ackOpen: liveAckOpen,
+    requestLive: async () => {
+      if (await liveAckRequired()) setLiveAckOpen(true);
+      else n.start("live");
+    },
+    acceptLive: async () => {
+      setLiveAckOpen(false);
+      await saveLiveAck();
+      n.start("live");
+    },
+    cancelLive: () => setLiveAckOpen(false),
+  };
+  // Leaving the routes sheet drops the acknowledgement (state adjusted
+  // during render, React's pattern for state derived from props).
+  const [ackPanel, setAckPanel] = useState(n.panel);
+  if (ackPanel !== n.panel) {
+    setAckPanel(n.panel);
+    if (n.panel !== "routes") setLiveAckOpen(false);
+  }
+
+  // BUG-008: hardware back closes the innermost thing first and never ends
+  // guidance without asking.
+  const [confirmEnd, setConfirmEnd] = useState(false);
+  const [confirmActive, setConfirmActive] = useState(n.active);
+  if (confirmActive !== n.active) {
+    setConfirmActive(n.active);
+    if (!n.active) setConfirmEnd(false);
+  }
+  const onBack = useRef<() => boolean>(() => false);
+  useEffect(() => {
+    onBack.current = () => {
+      const action = backAction({
+        panel: n.panel,
+        active: n.active,
+        confirmingEnd: confirmEnd,
+        liveAckOpen,
+        arrived: n.state === "arrived",
+        hasDestination: Boolean(n.destination),
+        tab: n.tab,
+      });
+      switch (action.kind) {
+        case "dismiss-confirm":
+          setConfirmEnd(false);
+          return true;
+        case "close-live-ack":
+          setLiveAckOpen(false);
+          return true;
+        case "panel":
+          n.setError("");
+          n.setPanel(action.to);
+          return true;
+        case "confirm-end":
+          setConfirmEnd(true);
+          return true;
+        case "reset":
+          n.reset();
+          return true;
+        case "home-tab":
+          n.setTab("Home");
+          return true;
+        default:
+          return false;
+      }
+    };
+  });
+  useEffect(() => {
+    if (Platform.OS !== "android") return;
+    const sub = BackHandler.addEventListener("hardwareBackPress", () =>
+      onBack.current(),
+    );
+    return () => sub.remove();
+  }, []);
+
+  // A11Y-001: announce each new step once to screen readers when voice
+  // guidance is off, and every guidance event (off route, GPS loss).
+  const stepText = n.active ? stepAnnouncement(n.step, formatDistance) : "";
+  const lastStepText = useRef("");
+  useEffect(() => {
+    const say = nextAnnouncement(lastStepText.current, stepText, !n.muted);
+    lastStepText.current = stepText;
+    if (say) AccessibilityInfo.announceForAccessibility(say);
+  }, [stepText, n.muted]);
+  const eventText = n.active
+    ? n.event || (n.guidanceSource === "live" ? n.liveGuidance.event : "")
+    : "";
+  const lastEventText = useRef("");
+  useEffect(() => {
+    const say = nextAnnouncement(lastEventText.current, eventText, false);
+    lastEventText.current = eventText;
+    // Android reads the banner through its assertive live region.
+    if (say && Platform.OS !== "android")
+      AccessibilityInfo.announceForAccessibility(say);
+  }, [eventText]);
+
+  const [showSteps, setShowSteps] = useState(false);
+  const server = serverBanner(n.serverState, n.online);
   return (
     <View style={[s.root, { backgroundColor: dark ? "#0B1220" : "#E9EEEB" }]}>
       <StatusBar style={dark ? "light" : "dark"} />
@@ -197,6 +330,46 @@ export default function NexoraApp() {
                 </Pressable>
               ))}
             </ScrollView>
+            {server && (
+              <View
+                accessibilityRole="alert"
+                accessibilityLiveRegion="polite"
+                style={[
+                  s.serverBanner,
+                  {
+                    backgroundColor: server.warning
+                      ? dark
+                        ? "#392D1C"
+                        : "#FFF5DE"
+                      : surface,
+                  },
+                ]}
+              >
+                {server.warning ? (
+                  <Icon
+                    name="alert-circle"
+                    size={17}
+                    color={dark ? "#F5B544" : palette.amber}
+                  />
+                ) : (
+                  <ActivityIndicator size="small" color={palette.teal} />
+                )}
+                <Text
+                  style={[
+                    s.serverText,
+                    {
+                      color: server.warning
+                        ? dark
+                          ? "#F5CB7F"
+                          : "#79541B"
+                        : ink,
+                    },
+                  ]}
+                >
+                  {server.text}
+                </Text>
+              </View>
+            )}
           </View>
           {desktop && (
             <View style={[s.desktopBadge, { top: top + 10, right: 26 }]}>
@@ -266,13 +439,21 @@ export default function NexoraApp() {
           >
             <View style={s.simulationLabel}>
               <View style={s.simDot} />
-              <Text style={s.simulationText}>
+              <Text style={[s.simulationText, { color: colors.safetyLabel }]}>
                 {n.guidanceSource === "live"
                   ? `LIVE GPS · UNVERIFIED FOR ROAD USE · ${LIVE_LABEL[n.liveGuidance.status] ?? ""}`
                   : "SIMULATION ONLY · NOT ROAD GUIDANCE"}
               </Text>
             </View>
-            <View style={s.turnContent}>
+            <View
+              style={s.turnContent}
+              accessible
+              accessibilityLabel={
+                stepAnnouncement(n.step, formatDistance) ||
+                n.step?.instruction ||
+                "Following the test route"
+              }
+            >
               <Icon
                 name={maneuverIcon(n.step)}
                 size={42}
@@ -290,8 +471,12 @@ export default function NexoraApp() {
               </View>
             </View>
           </View>
-          {Boolean(n.event || (n.guidanceSource === "live" && n.liveGuidance.event)) && (
+          {Boolean(
+            n.event || (n.guidanceSource === "live" && n.liveGuidance.event),
+          ) && (
             <View
+              accessibilityRole="alert"
+              accessibilityLiveRegion="assertive"
               style={[
                 s.eventBanner,
                 {
@@ -341,7 +526,8 @@ export default function NexoraApp() {
               <Text style={[s.speedNumber, { color: ink }]}>
                 {n.guidanceSource === "live" && n.liveGuidance.speedMps !== null
                   ? Math.round(
-                      n.liveGuidance.speedMps * (n.prefs.metric ? 3.6 : 2.23694),
+                      n.liveGuidance.speedMps *
+                        (n.prefs.metric ? 3.6 : 2.23694),
                     )
                   : "—"}
               </Text>
@@ -446,7 +632,11 @@ export default function NexoraApp() {
                   <IconButton
                     name={n.muted ? "volume-x" : "volume-2"}
                     dark={dark}
-                    label={n.muted ? "Turn voice guidance on" : "Turn voice guidance off"}
+                    label={
+                      n.muted
+                        ? "Turn voice guidance on"
+                        : "Turn voice guidance off"
+                    }
                     onPress={() => n.setMuted(!n.muted)}
                   />
                 )}
@@ -465,6 +655,13 @@ export default function NexoraApp() {
                   }}
                 />
                 <IconButton
+                  name="list"
+                  dark={dark}
+                  active={showSteps}
+                  label={showSteps ? "Hide step list" : "Show step list"}
+                  onPress={() => setShowSteps((v) => !v)}
+                />
+                <IconButton
                   name="x"
                   dark={dark}
                   label={
@@ -475,50 +672,62 @@ export default function NexoraApp() {
                   onPress={n.end}
                 />
               </View>
+              {showSteps && (
+                <StepList
+                  route={n.route}
+                  current={n.step}
+                  formatDistance={formatDistance}
+                  dark={dark}
+                />
+              )}
               {n.guidanceSource !== "live" && (
-              <>
-              <View style={s.simEvents}>
-                {[
-                  ["jitter", "ETA jitter"],
-                  ["tunnel", "GPS loss"],
-                  ["offline", "Offline"],
-                  ["closure", "Closure"],
-                  ["recover", "Recover"],
-                ].map(([type, label]) => (
+                <>
+                  <View style={s.simEvents}>
+                    {[
+                      ["jitter", "ETA jitter"],
+                      ["tunnel", "GPS loss"],
+                      ["offline", "Offline"],
+                      ["closure", "Closure"],
+                      ["recover", "Recover"],
+                    ].map(([type, label]) => (
+                      <Pressable
+                        key={type}
+                        accessibilityRole="button"
+                        onPress={() => n.inject(type)}
+                        style={[
+                          s.eventButton,
+                          { backgroundColor: dark ? "#23354A" : "#F0F4F1" },
+                        ]}
+                      >
+                        <Text
+                          style={{
+                            fontSize: 11,
+                            color: muted,
+                            fontWeight: "600",
+                          }}
+                        >
+                          {label}
+                        </Text>
+                      </Pressable>
+                    ))}
+                  </View>
                   <Pressable
-                    key={type}
                     accessibilityRole="button"
-                    onPress={() => n.inject(type)}
-                    style={[
-                      s.eventButton,
-                      { backgroundColor: dark ? "#23354A" : "#F0F4F1" },
-                    ]}
+                    disabled={n.state === "rerouting"}
+                    onPress={() => n.setProgress(1)}
+                    style={s.finishLink}
                   >
                     <Text
-                      style={{ fontSize: 11, color: muted, fontWeight: "600" }}
+                      style={{
+                        fontSize: 12,
+                        color: dark ? "#62D6BB" : palette.teal,
+                        fontWeight: "600",
+                      }}
                     >
-                      {label}
+                      Finish simulated journey
                     </Text>
                   </Pressable>
-                ))}
-              </View>
-              <Pressable
-                accessibilityRole="button"
-                disabled={n.state === "rerouting"}
-                onPress={() => n.setProgress(1)}
-                style={s.finishLink}
-              >
-                <Text
-                  style={{
-                    fontSize: 12,
-                    color: dark ? "#62D6BB" : palette.teal,
-                    fontWeight: "600",
-                  }}
-                >
-                  Finish simulated journey
-                </Text>
-              </Pressable>
-              </>
+                </>
               )}
             </ScrollView>
           </View>
@@ -624,7 +833,7 @@ export default function NexoraApp() {
                 { backgroundColor: dark ? "#3A4A5A" : "#D9E3DD" },
               ]}
             />
-            <Panels n={n} traffic={traffic} />
+            <Panels n={n} traffic={traffic} live={liveUi} />
           </View>
         </View>
       )}
@@ -691,6 +900,51 @@ export default function NexoraApp() {
               </Text>
             </Pressable>
           ))}
+        </View>
+      )}
+      {confirmEnd && n.active && (
+        <View pointerEvents="box-none" style={StyleSheet.absoluteFill}>
+          <Pressable
+            accessibilityLabel="Keep guidance running"
+            onPress={() => setConfirmEnd(false)}
+            style={[StyleSheet.absoluteFill, { backgroundColor: "#0B122040" }]}
+          />
+          <View
+            accessibilityViewIsModal
+            style={[
+              s.bottomSheet,
+              {
+                left: desktop ? 28 : 12,
+                bottom: 34 + insets.bottom,
+                width: sheetWidth,
+                backgroundColor: surface,
+              },
+            ]}
+          >
+            <View style={{ padding: 22, gap: 14 }}>
+              <Text
+                accessibilityRole="header"
+                style={[s.homeTitle, { color: ink }]}
+              >
+                End guidance?
+              </Text>
+              <Text style={[s.homeCopy, { color: muted }]}>
+                {n.guidanceSource === "live"
+                  ? "Live GPS guidance and the location watch will stop."
+                  : "The simulation will stop."}
+              </Text>
+              <Button title="Keep going" onPress={() => setConfirmEnd(false)} />
+              <Button
+                title="End guidance"
+                secondary
+                dark={dark}
+                onPress={() => {
+                  setConfirmEnd(false);
+                  n.end();
+                }}
+              />
+            </View>
+          </View>
         </View>
       )}
       {Boolean(n.toast) && (
@@ -1225,6 +1479,15 @@ const s = StyleSheet.create({
     shadowRadius: 7,
   },
   chipText: { fontSize: 12, fontWeight: "600" },
+  serverBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 14,
+  },
+  serverText: { flex: 1, fontSize: 13, lineHeight: 18 },
   desktopBadge: { position: "absolute" },
   desktopTag: {
     paddingHorizontal: 16,
@@ -1372,10 +1635,10 @@ const s = StyleSheet.create({
   },
   simDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: "#CB880E" },
   simulationText: {
-    fontSize: 9,
+    flex: 1,
+    fontSize: 11,
     letterSpacing: 0.8,
     fontWeight: "700",
-    color: "#9B6500",
   },
   turnContent: { flexDirection: "row", gap: 17, alignItems: "center" },
   nextDistance: { fontSize: 27, fontWeight: "700", letterSpacing: -1 },

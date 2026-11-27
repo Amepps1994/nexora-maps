@@ -4,7 +4,7 @@ import { Feather } from "@expo/vector-icons";
 import Svg, { Path } from "react-native-svg";
 export const palette = {
   ink: "#0B1220",
-  muted: "#647570",
+  muted: "#5C6D68",
   teal: "#087F73",
   accent: "#18BFA9",
   line: "#E6ECE9",
