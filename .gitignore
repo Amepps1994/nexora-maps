@@ -70,5 +70,12 @@ Thumbs.db
 dist-mobile/
 .env
 
-# offline region packs (built by scripts/offline-region.mjs; large binaries)
-server/nexora/offline-data/
+# Offline region packs (built by scripts/offline-region.mjs; large binaries).
+# Packs are ignored by default; the London pack is deliberately committed because Render
+# serves it from the repo (render.yaml). Add a `!` line here for any new pack you commit.
+server/nexora/offline-data/*
+!server/nexora/offline-data/london/
+
+# Expo web export used by scripts/live-guidance-web-drive.js; rebuild it, don't commit it:
+#   npx expo export --platform web --output-dir dist-web
+dist-web/
