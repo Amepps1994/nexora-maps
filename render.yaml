@@ -2,6 +2,8 @@
 # Offline packs are served from server/nexora/offline-data/london (force-added to the repo:
 # tiles.pmtiles 56 MB, search.json, manifest.json; sizes must match the manifest).
 # Secrets are NOT stored here: NEXORA_GEOCODER_KEY is entered in the Render dashboard (sync: false).
+# The API has no accounts or sessions (SEC-002): JWT_SECRET, DATABASE_URL and OAUTH_SERVER_URL
+# are unused and can be deleted from the dashboard.
 services:
   - type: web
     name: nexora-api
