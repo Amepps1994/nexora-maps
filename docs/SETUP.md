@@ -14,26 +14,26 @@ The plan uses a simple Express/TypeScript provider boundary and local guest pers
 
 ## Reproduce the development environment
 
-From the existing project directory, inspect the lockfile and available runtime, then use the supplied scripts. These commands reproduce checks; actual results are recorded separately:
+Use Node 22 (`.nvmrc`) and the pinned pnpm (`corepack enable`). These commands reproduce the checks that CI runs on
+every pull request; record real results separately:
 
 ```sh
-cd /home/ubuntu/nexora
-corepack pnpm --version
 pnpm install --frozen-lockfile
-cp .env.example .env
-# Load .env into the server process using the project's existing loader, or export
-# these non-secret values in the development shell. Verify loader behaviour.
+cp .env.example .env   # fill in private values; never commit .env
 pnpm check
 pnpm lint
 pnpm test
-pnpm db:push
-# Inside Manus, use the existing managed runtime entries rather than pnpm dev.
-# Outside Manus, use pnpm dev:server and pnpm dev:metro in separate terminals.
+pnpm build
 ```
 
-Inside Manus, declared managed entries run `pnpm dev:server` on 3000 and `pnpm dev:metro` on 8081; both were health-checked. Do not launch duplicates. Outside Manus, those scripts run separately (or the combined `dev`). `android` / `ios` start Expo for a compatible emulator or device; they do not produce or validate a signed release. The `qr` script is available in package.json, but its output is not device-test evidence. Avoid `pnpm format` during a documentation-only task because it writes the whole project. No release, store publication, paid infrastructure, purchases or commercial terms acceptance are authorised.
+For local work, run `pnpm dev:server` (API on port 3000) and `pnpm dev:metro` (Expo on port 8081) in separate
+terminals, or both with `pnpm dev`. `android` / `ios` start Expo for a compatible emulator or device; they do not
+produce or validate a signed release. Installable Android builds go through EAS, see [RELEASE.md](RELEASE.md). The
+hosted API runs on Render from `render.yaml`. Avoid `pnpm format` during a documentation-only task because it
+rewrites the whole project. No store publication, paid infrastructure, purchases or commercial terms acceptance are
+authorised.
 
-Before API startup that needs the starter database, arrange the existing development connection privately and review/run `pnpm db:push` against that development database only. Its script runs Drizzle generation and migration; it can write migrations and modify a database. It completed successfully here against the supplied managed starter schema; no application incident/guest data uses that database. The managed database is shared by development and publication, so future migration writes also affect production data. Review changes carefully; do not assume a separate database merely because a phase is called staging. Provider/guest-only behaviour must clearly report whether database setup is needed. Backend environment credentials must never be copied into the client or committed. The empty geocoder key field in .env.example is not a credential.
+**Legacy database (Manus era, being removed).** Before API startup that needs the starter database, arrange the existing development connection privately and review/run `pnpm db:push` against that development database only. Its script runs Drizzle generation and migration; it can write migrations and modify a database. It completed successfully here against the supplied managed starter schema; no application incident/guest data uses that database. The managed database is shared by development and publication, so future migration writes also affect production data. Review changes carefully; do not assume a separate database merely because a phase is called staging. Provider/guest-only behaviour must clearly report whether database setup is needed. Backend environment credentials must never be copied into the client or committed. The empty geocoder key field in .env.example is not a credential.
 
 Record command, timestamp, commit, environment, exit status, output and known failures in the final delivery evidence. Tests are not assumed to pass because a script exists. See [DEVICE_TEST_PLAN.md](DEVICE_TEST_PLAN.md) for manual validation and blocked release gates.
 

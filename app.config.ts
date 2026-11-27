@@ -57,8 +57,8 @@ const publicRuntime = {
     process.env.VITE_APP_ID ??
     process.env.EXPO_PUBLIC_APP_ID ??
     "",
-  // Native builds need an absolute API URL; fall back to the Render-hosted backend (render.yaml) when the
-  // EAS environment doesn't provide EXPO_PUBLIC_API_BASE_URL.
+  // Native builds need an absolute API URL. Every eas.json build profile sets EXPO_PUBLIC_API_BASE_URL
+  // explicitly (OPS-003); this fallback to the Render-hosted backend (render.yaml) only covers local runs.
   apiBaseUrl: process.env.EXPO_PUBLIC_API_BASE_URL || "https://nexora-api-cfoh.onrender.com",
 };
 
@@ -101,6 +101,9 @@ const config: ExpoConfig = {
       "ACCESS_COARSE_LOCATION",
       "ACCESS_FINE_LOCATION",
     ],
+    // NEXORA never records audio (voice guidance is text-to-speech only), so strip the
+    // microphone permission even if a dependency's manifest tries to merge it in (PRIV-001).
+    blockedPermissions: ["android.permission.RECORD_AUDIO"],
     intentFilters: [
       {
         action: "VIEW",
@@ -128,20 +131,6 @@ const config: ExpoConfig = {
       {
         locationWhenInUsePermission:
           "Allow NEXORA to use your foreground location for planning and live turn-by-turn guidance while the app is open.",
-      },
-    ],
-    [
-      "expo-audio",
-      {
-        microphonePermission:
-          "Allow $(PRODUCT_NAME) to access your microphone.",
-      },
-    ],
-    [
-      "expo-video",
-      {
-        supportsBackgroundPlayback: true,
-        supportsPictureInPicture: true,
       },
     ],
     [

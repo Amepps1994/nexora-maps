@@ -1,8 +1,35 @@
-# NEXORA Maps — working development slice
+# NEXORA Maps — handover
+
+## Current status (27 Nov 2026)
+
+- **Source and deploys.** The code lives in the private GitHub repo `Amepps1994/nexora-maps`. Every pull request runs
+  CI (`.github/workflows/ci.yml`: typecheck, lint, tests, server build). Render deploys `main` to
+  https://nexora-api-cfoh.onrender.com (free plan, sleeps after 15 minutes idle). Manus is no longer used.
+- **Android.** EAS builds an installable APK (`eas.json` profiles `preview` and `production-apk`; see
+  [RELEASE.md](RELEASE.md)). Build `a4265095` launched to the full map on an x86_64 Android emulator (API 37). No
+  physical-phone or in-car test has been recorded yet.
+- **Features added since the original slice.** LocationIQ live search, up to three stops with leave / arrive times,
+  TfL road disruptions, the offline London pack, live GPS turn-by-turn guidance with voice, and Android Auto /
+  lock-screen guidance. CarPlay waits for Apple's entitlement.
+- **Not yet verified.** Live guidance and car displays are unverified for road use until device tests LG-1 to LG-10
+  in [DEVICE_TEST_PLAN.md](DEVICE_TEST_PLAN.md) pass on a real phone.
+- **Open owner actions.** Rotate `DATABASE_URL` and `JWT_SECRET` (they appeared in old EAS build logs) and delete the
+  old logs; choose the final Android application id. The audit and roadmap are in `roadmap/`.
+- **Microphone.** The app no longer bundles `expo-audio` / `expo-video`, and the Android build strips
+  `RECORD_AUDIO`. Voice guidance is text-to-speech only.
+
+Use [README.md](../README.md) for local development and [SETUP.md](SETUP.md) for provider configuration.
+
+## Historical record (26–27 Nov 2026, Manus era)
+
+Everything below was written while the app was hosted on Manus, before the Render backend, EAS builds and the
+features above existed. It is kept as a record of what was validated then. Where it says "no APK", "lookup not
+configured" or "not implemented", the current status above supersedes it.
+
 
 The app opens in Manus Preview and is built with the fixed Expo / React Native / TypeScript mobile starter. It is a functioning planning and simulated-navigation slice, not a landing page. Nothing has been published, purchased or released to app stores. No installable APK/IPA has been produced. Native road guidance is not enabled.
 
-## What works today
+### What works today
 
 The interactive, attributed OpenStreetMap/Leaflet map supports pan, zoom, scale, pins, recenter, destination markers and selected-route overlays. The web rendering boundary is an iframe; iOS/Android source uses a compatible WebView. Map handshakes time out into a working retry control. Light/dark appearance and reduced-motion/display-unit controls work; a dark map is explicitly a raster display treatment, not another imagery provider.
 
@@ -16,11 +43,11 @@ Saved places and home/work, appearance, units and preferences persist locally. T
 
 Test reports use local-only submission, same-category spatial/time de-duplication, bounded TTL, rate limits, pending/approved/rejected status and explicit test confirmations. Reports never reach a live system or affect engine routes. Same-device confirmation is not independent corroboration. Segment/direction matching, contributor isolation, independent voting, real abuse protection and production moderation remain absent. The real admin endpoint denies anonymous requests with HTTP 403; local review is intentionally labelled a demo console.
 
-## Added 27 November 2026
+### Added 27 November 2026
 
 The route planner now supports up to three ordered stops (add, reorder, remove, per-leg totals), leave now / leave at / arrive by estimates in UK time from free-flow durations, and an honest avoid motorways/tolls/ferries state that stays disabled because the hosted test graph rejects every exclude. Evidence, commands and limits are in [itinerary-validation-2026-11-27.md](itinerary-validation-2026-11-27.md). Tests now total 181 passing with the same one pre-existing skip.
 
-## Actual validation on 26 November 2026
+### Actual validation on 26 November 2026
 
 `pnpm db:push` completed against the supplied starter user schema before API startup. Managed `api` and `metro` listeners were registered on ports 3000 and 8081, and both were verified listening. `GET /api/health` returned HTTP 200. No incident/guest data is written to the managed database.
 
@@ -34,7 +61,7 @@ Browser DOM smoke checks exercised destination selection, real walking alternati
 
 A source regex scan for common secret literals/private keys found no matches in application modules and `.env.example`; that is a limited scan, not a security certification. `pnpm audit --json` produced no usable metadata, so dependency-vulnerability audit remains **blocked/unverified**, not passed. A read-only validation agent found route-loading invalidation, precise-origin deletion, closure Resume bypass and tile-network recovery defects; targeted fixes were applied and relevant UI/type/test paths rechecked. Native touch/assistive-technology/contrast and real-device permission gates remain unverified.
 
-## Screens, design and limits
+### Screens, design and limits
 
 Implemented screen captures are under `screenshots/`. They are Expo Web planning/simulation views, never evidence of native road guidance. The UI uses original split-path branding, midnight/white/deep teal surfaces, blue real-test routes and dotted teal synthetic geometry. Reusable controls, sheets, route cards, status notices, turn banner and speed-unknown tile live under `components/nexora`.
 
@@ -44,7 +71,7 @@ Some supporting labels are small and complete WCAG 2.2 AA/large-text/VoiceOver/T
 
 Offline region packages, local search graph/rerouting, voice, background/lock-screen guidance, official traffic/closures, validated lane/landmark navigation, live trip sharing, EV/parking/charges, public transit, AI, car displays and global production deployment are not implemented. Their controls do not appear falsely enabled. Offline package gate is blocked, not replaced by cached tiles or a fake Download button. Trademark/domain, provider terms, jurisdiction matrix, DPIA, legal review, moderation operations and dependency audit are required before beta/public launch.
 
-## Continue safely
+### Continue safely
 
 Use README.md for the demo; SETUP.md and PROVIDER_RESEARCH.md for actual policies/provider configuration; PRIVACY_SECURITY.md for draft notices, security and moderation; DEVICE_TEST_PLAN.md for native validation; FEATURE_MANIFEST.json and ROADMAP.md for every retained requirement, phased dependencies, states and planning effort ranges. Full broad source paragraphs remain unfinished where advanced clauses are missing; evidence-backed delivered subfeatures are listed separately instead of declaring their parent requirement complete.
 
