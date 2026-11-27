@@ -2,7 +2,17 @@ import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Location from "expo-location";
 import { Linking } from "react-native";
-import { getApiBaseUrl } from "@/constants/oauth";
+import {
+  api,
+  ApiError,
+  friendlyApiError,
+  timeoutFor,
+  useServerState,
+  REROUTE_TIMEOUT_MS,
+  ROUTE_TIMEOUT_MS,
+  SEARCH_TIMEOUT_MS,
+} from "@/lib/nexora-api";
+import { remainingStops } from "@/shared/nexora/reroute";
 import { buildCarGuidance } from "@/shared/nexora/car-guidance";
 import { onCarCommand, publishCarGuidance } from "@/lib/car/guidance-bus";
 import type { Coord, Place, Route, Incident } from "@/shared/nexora/domain";
@@ -127,6 +137,35 @@ export function useNexora() {
   const [center, setCenter] = useState<Coord | undefined>();
   const [mapCommand, setMapCommand] = useState("");
   const [capabilities, setCapabilities] = useState<any>(null);
+  // "waking" while the free Render server boots (about 50 s after 15 min idle).
+  const serverState = useServerState();
+  const capabilitiesLoading = useRef<Promise<void> | null>(null);
+  /** Load capabilities with backoff; shared while one load is in flight. */
+  function loadCapabilities() {
+    if (capabilitiesLoading.current) return capabilitiesLoading.current;
+    const load = api
+      .capabilities()
+      .then(setCapabilities)
+      .catch(() => {
+        /* the search panel retries when opened; local search still works */
+      })
+      .finally(() => {
+        capabilitiesLoading.current = null;
+      });
+    capabilitiesLoading.current = load;
+    return load;
+  }
+  const searchGeneration = useRef(0);
+  const searchAbort = useRef<AbortController | null>(null);
+  /** Drop any in-flight live search so a slow reply cannot overwrite newer state. */
+  function cancelSearch() {
+    searchGeneration.current += 1;
+    searchAbort.current?.abort();
+    searchAbort.current = null;
+  }
+  /** Stops of the current trip already dropped by earlier reroutes (BUG-002). */
+  const visitedStops = useRef(0);
+  const pendingVisitedStops = useRef(0);
   const tripRecorded = useRef(false);
   const hydratedRef = useRef(false);
   useEffect(() => {
@@ -147,14 +186,14 @@ export function useNexora() {
         hydratedRef.current = true;
         setHydrated(true);
       });
-    // Promise.resolve() turns a synchronous fetch throw (e.g. "Invalid URL" when the API
-    // base URL is empty on native) into a rejection, so it can't crash the app on launch.
-    Promise.resolve()
-      .then(() => fetch(`${getApiBaseUrl()}/api/nexora/capabilities`))
-      .then((r) => r.json())
-      .then(setCapabilities)
-      .catch(() => {});
+    // Start waking the server at once, then load capabilities with backoff (BUG-001).
+    // The client turns synchronous fetch throws (e.g. "Invalid URL" when the API base
+    // URL is empty on native) into rejections, so neither can crash the app on launch.
+    api.warmUp().catch(() => {});
+    loadCapabilities();
     readLocationPermission();
+    return () => cancelSearch();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   useEffect(() => {
     if (!hydratedRef.current) return;
@@ -183,24 +222,28 @@ export function useNexora() {
     mode,
     routeMode: prefs.routeMode,
     requestReroute: async (from, passed) => {
-      const r = await fetch(`${getApiBaseUrl()}/api/nexora/routes`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      // `passed` counts stops on the route being followed, which after a reroute no
+      // longer includes stops visited earlier, so keep a cumulative offset (BUG-002).
+      const { remaining, nextOffset } = remainingStops(stops, visitedStops.current, passed);
+      pendingVisitedStops.current = nextOffset;
+      const data = await api.json<{ routes?: Route[] }>("/api/nexora/routes", {
+        body: {
           origin: from,
           destination: destination?.coordinate,
           mode,
-          ...(stops.length > passed
-            ? { stops: stops.slice(passed).map((stop) => stop.coordinate) }
+          ...(remaining.length
+            ? { stops: remaining.map((stop) => stop.coordinate) }
             : {}),
           ...(avoid.length && mode === "driving" ? { avoid } : {}),
-        }),
+        },
+        // A hung reroute must not leave the driver in "rerouting" (BUG-007).
+        timeoutMs: REROUTE_TIMEOUT_MS,
       });
-      const data = await r.json();
-      if (!r.ok || !data.routes?.length) return null;
+      if (!data.routes?.length) return null;
       return scoreRoutes(data.routes, preference)[0] ?? null;
     },
     applyReroute: (next) => {
+      visitedStops.current = pendingVisitedStops.current;
       setRoutes([next]);
       setSelectedId(next.id);
     },
@@ -319,6 +362,10 @@ export function useNexora() {
   const results = searchResults || localResults;
   function openSearch(forField: typeof searchFor = "destination") {
     if (active) return;
+    cancelSearch();
+    setBusy(false);
+    // The server may have been asleep at launch: try again now the user wants search.
+    if (!capabilities) loadCapabilities();
     setSearchFor(forField);
     setQuery("");
     setSearchResults(null);
@@ -329,6 +376,7 @@ export function useNexora() {
     if (active) return;
     requestGeneration.current += 1;
     locationGeneration.current += 1;
+    cancelSearch();
     setBusy(false);
     if (field === "origin") {
       setOrigin(place);
@@ -376,21 +424,38 @@ export function useNexora() {
       "destination",
     );
   }
+  // A new query makes any in-flight search stale (BUG-006).
+  useEffect(() => {
+    if (!searchAbort.current) return;
+    cancelSearch();
+    setBusy(false);
+  }, [query]);
   async function liveSearch() {
     if (moving) return;
+    cancelSearch();
+    const generation = searchGeneration.current;
+    const controller = new AbortController();
+    searchAbort.current = controller;
     setBusy(true);
     setError("");
     try {
-      const r = await fetch(
-        `${getApiBaseUrl()}/api/nexora/search?q=${encodeURIComponent(query)}`,
+      const d = await api.json<{ results: Place[] }>(
+        `/api/nexora/search?q=${encodeURIComponent(query)}`,
+        {
+          signal: controller.signal,
+          timeoutMs: timeoutFor(api.getState(), SEARCH_TIMEOUT_MS),
+        },
       );
-      const d = await r.json();
-      if (!r.ok) throw new Error(d.error);
-      setSearchResults(d.results);
+      if (generation !== searchGeneration.current) return;
+      setSearchResults(Array.isArray(d.results) ? d.results : []);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Search failed.");
+      if (generation !== searchGeneration.current) return;
+      setError(friendlyApiError(e, api.getState(), "Search failed. Try again."));
     } finally {
-      setBusy(false);
+      if (generation === searchGeneration.current) {
+        searchAbort.current = null;
+        setBusy(false);
+      }
     }
   }
   async function calculate(useFixture = false, selectedMode = mode) {
@@ -410,8 +475,6 @@ export function useNexora() {
       return;
     }
     const generation = ++requestGeneration.current;
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 18000);
     setPanel("routes");
     setBusy(true);
     setError("");
@@ -428,11 +491,9 @@ export function useNexora() {
         setRoutes(next);
         setSelectedId(next[0]?.id || "");
       } else {
-        const r = await fetch(`${getApiBaseUrl()}/api/nexora/routes`, {
-          method: "POST",
-          signal: controller.signal,
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
+        // Up to 60 s while the server is waking, 18 s once it is awake (BUG-001).
+        const data = await api.json<{ routes?: Route[] }>("/api/nexora/routes", {
+          body: {
             origin: origin.coordinate,
             destination: destination.coordinate,
             mode: selectedMode,
@@ -440,21 +501,20 @@ export function useNexora() {
               ? { stops: stops.map((stop) => stop.coordinate) }
               : {}),
             ...(avoid.length && selectedMode === "driving" ? { avoid } : {}),
-          }),
+          },
+          timeoutMs: timeoutFor(api.getState(), ROUTE_TIMEOUT_MS),
         });
-        const data = await r.json();
         if (generation !== requestGeneration.current) return;
-        if (!r.ok) throw new Error(data.error);
-        setRoutes(data.routes);
-        setSelectedId(data.routes[0]?.id || "");
+        const next = Array.isArray(data.routes) ? data.routes : [];
+        setRoutes(next);
+        setSelectedId(next[0]?.id || "");
       }
       setState("preview");
     } catch (e) {
       if (generation !== requestGeneration.current) return;
       setState("idle");
-      setError(e instanceof Error ? e.message : "Route unavailable.");
+      setError(friendlyApiError(e, api.getState(), "Route unavailable. Try again."));
     } finally {
-      clearTimeout(timeout);
       if (generation === requestGeneration.current) setBusy(false);
     }
   }
@@ -472,6 +532,8 @@ export function useNexora() {
       }
     } else live.stop();
     setGuidanceSource(source);
+    visitedStops.current = 0;
+    pendingVisitedStops.current = 0;
     setTripSeq((n) => n + 1);
     tripRecorded.current = false;
     setProgress(0);
@@ -639,60 +701,57 @@ export function useNexora() {
   async function refreshProviders() {
     if (providerRefreshing) return;
     setProviderRefreshing(true);
-    const base = getApiBaseUrl();
     const results: HealthMap = {};
     for (const mode of ROUTING_PROFILES) {
       const started = Date.now();
       try {
-        const r = await fetch(`${base}/api/nexora/routes`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
+        const d = await api.json<{ routes?: Route[] }>("/api/nexora/routes", {
+          body: {
             origin: [-0.1196, 51.5174],
             destination: [-0.1234, 51.5113],
             mode,
-          }),
+          },
+          timeoutMs: timeoutFor(api.getState(), ROUTE_TIMEOUT_MS),
         });
         const ms = Date.now() - started;
         const checkedAt = new Date().toISOString();
-        if (r.ok) {
-          const d = await r.json().catch(() => null);
-          results[mode] = d?.routes?.length
-            ? { status: "reachable", checkedAt, ms }
-            : { status: "error", checkedAt, reason: "no route returned" };
-        } else if (r.status === 429) {
+        results[mode] = d?.routes?.length
+          ? { status: "reachable", checkedAt, ms }
+          : { status: "error", checkedAt, reason: "no route returned" };
+      } catch (e) {
+        const checkedAt = new Date().toISOString();
+        if (e instanceof ApiError && e.kind === "http" && e.status === 429)
           results[mode] = { status: "limited", checkedAt };
-        } else {
+        else if (e instanceof ApiError && e.kind === "http")
           results[mode] = {
-            status: r.status === 503 ? "unavailable" : "error",
+            status: e.status === 503 ? "unavailable" : "error",
             checkedAt,
-            reason: `HTTP ${r.status}`,
+            reason: `HTTP ${e.status}`,
           };
-        }
-      } catch {
-        results[mode] = {
-          status: "unavailable",
-          checkedAt: new Date().toISOString(),
-          reason: "no connection to NEXORA API",
-        };
+        else
+          results[mode] = {
+            status: "unavailable",
+            checkedAt,
+            reason:
+              e instanceof ApiError && e.kind === "timeout"
+                ? "NEXORA API did not answer in time"
+                : "no connection to NEXORA API",
+          };
       }
     }
     try {
-      const r = await fetch(`${base}/api/nexora/capabilities`);
-      if (r.ok) {
-        const caps = await r.json();
-        // The server's record comes from these same probes but is stamped with the
-        // server's clock. If the device clock runs behind, that record would look newer
-        // and hide this device's measurement (and its timing), so let this refresh win.
-        const server: HealthMap = caps?.routing?.health ?? {};
-        for (const mode of ROUTING_PROFILES) {
-          const mine = results[mode];
-          const theirs = server[mode]?.checkedAt;
-          if (mine?.checkedAt && theirs && Date.parse(theirs) > Date.parse(mine.checkedAt))
-            results[mode] = { ...mine, checkedAt: theirs };
-        }
-        setCapabilities(caps);
+      const caps = await api.json<any>("/api/nexora/capabilities");
+      // The server's record comes from these same probes but is stamped with the
+      // server's clock. If the device clock runs behind, that record would look newer
+      // and hide this device's measurement (and its timing), so let this refresh win.
+      const server: HealthMap = caps?.routing?.health ?? {};
+      for (const mode of ROUTING_PROFILES) {
+        const mine = results[mode];
+        const theirs = server[mode]?.checkedAt;
+        if (mine?.checkedAt && theirs && Date.parse(theirs) > Date.parse(mine.checkedAt))
+          results[mode] = { ...mine, checkedAt: theirs };
       }
+      setCapabilities(caps);
     } catch {
       /* device results below still stand */
     }
@@ -825,19 +884,27 @@ export function useNexora() {
     readLocationPermission();
     setToast("Local guest data deleted. No cloud account exists.");
   }
-  const exportData = JSON.stringify(
-    {
-      exportedAt: new Date().toISOString(),
-      storage: "local guest only",
-      prefs,
-      saved,
-      trips,
-      reports,
-      home,
-      work,
-    },
-    null,
-    2,
+  // Built only while the export panel is open, not on every render (PERF-002).
+  const exporting = panel === "export";
+  const exportData = useMemo(
+    () =>
+      exporting
+        ? JSON.stringify(
+            {
+              exportedAt: new Date().toISOString(),
+              storage: "local guest only",
+              prefs,
+              saved,
+              trips,
+              reports,
+              home,
+              work,
+            },
+            null,
+            2,
+          )
+        : "",
+    [exporting, prefs, saved, trips, reports, home, work],
   );
   // Car displays + lock-screen card (lib/car). Publishes the navigation state these
   // surfaces render and handles their Stop / Mute buttons. Owned by the car thread.
@@ -945,6 +1012,7 @@ export function useNexora() {
     setCenter,
     mapCommand,
     capabilities,
+    serverState,
     active,
     moving,
     position,
