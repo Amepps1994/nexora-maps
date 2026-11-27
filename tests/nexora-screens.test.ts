@@ -12,6 +12,7 @@ import {
   nextAnnouncement,
   originNotice,
   previousPanel,
+  serverBanner,
   shouldAutoOpenOnboarding,
   stepAnnouncement,
   stepItems,
@@ -264,5 +265,16 @@ describe("flagged colours are gone from the screens", () => {
       read("components/nexora/NexoraApp.tsx");
     for (const bad of ["#AABBB2", "#CBD5D1", "#CAD7D0", 'color: "#9B6500"'])
       expect(src).not.toContain(bad);
+  });
+});
+
+describe("server cold-start banner", () => {
+  it("shows while the server wakes or is unreachable, never when ready or offline", () => {
+    expect(serverBanner("ready", true)).toBeNull();
+    expect(serverBanner(undefined, true)).toBeNull();
+    expect(serverBanner("waking", false)).toBeNull();
+    expect(serverBanner("waking", true)).toMatchObject({ warning: false });
+    expect(serverBanner("waking", true)?.text).toContain("up to a minute");
+    expect(serverBanner("unreachable", true)).toMatchObject({ warning: true });
   });
 });

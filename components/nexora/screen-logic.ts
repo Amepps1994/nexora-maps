@@ -254,3 +254,23 @@ export function boundaryState(error: unknown): BoundaryState {
   const message = raw.trim().slice(0, 160) || "Unknown error";
   return { failed: true, message };
 }
+
+// ---------------------------------------------------------------------------
+// Server cold start banner (BUG-001 UI part)
+
+/** Banner text for the API server state, or null when it is ready. */
+export function serverBanner(
+  state: "waking" | "ready" | "unreachable" | undefined,
+  online: boolean,
+): { text: string; warning: boolean } | null {
+  if (!online || !state || state === "ready") return null;
+  if (state === "waking")
+    return {
+      text: "Waking the NEXORA server… the first search or route can take up to a minute.",
+      warning: false,
+    };
+  return {
+    text: "NEXORA server unreachable. Saved places and offline maps still work; try again shortly.",
+    warning: true,
+  };
+}

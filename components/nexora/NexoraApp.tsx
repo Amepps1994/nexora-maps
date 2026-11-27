@@ -28,6 +28,7 @@ import {
   a11yColors,
   backAction,
   nextAnnouncement,
+  serverBanner,
   shouldAutoOpenOnboarding,
   stepAnnouncement,
 } from "./screen-logic";
@@ -223,6 +224,7 @@ export default function NexoraApp() {
   }, [eventText]);
 
   const [showSteps, setShowSteps] = useState(false);
+  const server = serverBanner(n.serverState, n.online);
   return (
     <View style={[s.root, { backgroundColor: dark ? "#0B1220" : "#E9EEEB" }]}>
       <StatusBar style={dark ? "light" : "dark"} />
@@ -328,6 +330,46 @@ export default function NexoraApp() {
                 </Pressable>
               ))}
             </ScrollView>
+            {server && (
+              <View
+                accessibilityRole="alert"
+                accessibilityLiveRegion="polite"
+                style={[
+                  s.serverBanner,
+                  {
+                    backgroundColor: server.warning
+                      ? dark
+                        ? "#392D1C"
+                        : "#FFF5DE"
+                      : surface,
+                  },
+                ]}
+              >
+                {server.warning ? (
+                  <Icon
+                    name="alert-circle"
+                    size={17}
+                    color={dark ? "#F5B544" : palette.amber}
+                  />
+                ) : (
+                  <ActivityIndicator size="small" color={palette.teal} />
+                )}
+                <Text
+                  style={[
+                    s.serverText,
+                    {
+                      color: server.warning
+                        ? dark
+                          ? "#F5CB7F"
+                          : "#79541B"
+                        : ink,
+                    },
+                  ]}
+                >
+                  {server.text}
+                </Text>
+              </View>
+            )}
           </View>
           {desktop && (
             <View style={[s.desktopBadge, { top: top + 10, right: 26 }]}>
@@ -1437,6 +1479,15 @@ const s = StyleSheet.create({
     shadowRadius: 7,
   },
   chipText: { fontSize: 12, fontWeight: "600" },
+  serverBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 14,
+  },
+  serverText: { flex: 1, fontSize: 13, lineHeight: 18 },
   desktopBadge: { position: "absolute" },
   desktopTag: {
     paddingHorizontal: 16,
