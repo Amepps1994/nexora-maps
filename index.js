@@ -1,6 +1,5 @@
 // NEXORA app entry. Expo Router stays the app; this file only runs car integration setup
 // first. See docs/CAR_DISPLAYS.md.
-/* eslint-disable @typescript-eslint/no-require-imports */
 const { Platform } = require("react-native");
 const Constants = require("expo-constants").default;
 

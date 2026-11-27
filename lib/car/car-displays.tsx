@@ -408,7 +408,6 @@ export function startCarDisplays(): void {
   try {
     // Required lazily: on iOS without the CarPlay entitlement the native module is not
     // linked at all (react-native.config.js), so a top-level import would throw.
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const lib: AutoPlay = require("@iternio/react-native-auto-play");
     lib.setIconFont(CAR_ICON_FONT, CAR_GLYPHS);
     setConnection("disconnected");
