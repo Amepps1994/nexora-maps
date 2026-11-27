@@ -27,3 +27,8 @@ Searched `SW1A 1AA` → "CONFIGURED PROVIDER RESULTS" listing SW1A 1AA, City of 
 
 ## Not covered
 Autocomplete/debounce (submit-only by design to stay inside the 5,000/day free quota), recent searches, offline search, business metadata, native Android verification against a backend that has the key.
+
+## Hosted backend (Render, replaces Manus), 27 Nov 2026 13:05 UTC
+`https://nexora-api-cfoh.onrender.com` (render.yaml, free tier, key set in the Render dashboard only):
+`/api/nexora/capabilities` reports `search.configured: true, provider: LocationIQ`; `search?q=SW1A 1AA` returned SW1A 1AA, City of Westminster; `/api/nexora/map` 200; driving route King's Cross → Tate Modern returned OSRM geometry; offline London region `available: true` and `tiles.pmtiles` served in full (56,370,125 bytes).
+`app.config.ts` now falls back to this URL (no EAS `EXPO_PUBLIC_API_BASE_URL` is set for production). A native APK against it is not yet built or tested.
