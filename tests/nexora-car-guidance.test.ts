@@ -107,6 +107,26 @@ describe("toCarManeuver", () => {
       roadName: "Pentonville Road",
     });
   });
+  it("uses the provider modifier and exit when present (BUG-004)", () => {
+    expect(
+      toCarManeuver(step({ instruction: "Make a U-turn", type: "continue", modifier: "uturn" })),
+    ).toMatchObject({ kind: "turn", direction: "uturn" });
+    expect(
+      toCarManeuver(
+        step({ instruction: "Turn left to stay on Strand", type: "continue", modifier: "left" }),
+      ),
+    ).toMatchObject({ kind: "turn", direction: "left", roadName: "Strand" });
+    expect(
+      toCarManeuver(
+        step({ instruction: "Keep right onto Mall", type: "new name", modifier: "slight right" }),
+      ),
+    ).toMatchObject({ kind: "keep", direction: "slight-right" });
+    expect(
+      toCarManeuver(
+        step({ instruction: "At the roundabout, take exit 4 onto A1", type: "roundabout", exit: 4 }),
+      ).exit,
+    ).toBe(4);
+  });
   it("keeps road names from changing the arrow", () =>
     expect(
       toCarManeuver(

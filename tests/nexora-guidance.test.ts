@@ -302,3 +302,136 @@ describe("spoken distances", () => {
   ])("%d m (metric=%s) -> %s", (m, metric, text) =>
     expect(spokenDistance(m, metric)).toBe(text));
 });
+
+/** Route through `points` given as [eastM, northM] offsets from a London origin. */
+function offsetRoute(points: [number, number][], steps: Route["steps"] = []): Route {
+  const lat0 = 51.53,
+    lon0 = -0.12;
+  const k = Math.cos((lat0 * Math.PI) / 180);
+  const geometry: Coord[] = points.map(([e, n]) => [
+    lon0 + e / 111_195 / k,
+    lat0 + n / 111_195,
+  ]);
+  return {
+    id: "test-loop",
+    geometry,
+    distanceM: 0,
+    durationS: 600,
+    steps: steps.length
+      ? steps
+      : [
+          { instruction: "Head east", distanceM: 0, durationS: 0, coordinate: geometry[0], type: "depart" },
+          { instruction: "Arrive at your destination", distanceM: 0, durationS: 0, coordinate: geometry.at(-1)!, type: "arrive" },
+        ],
+    source: "test",
+    generatedAt: "2026-11-27T00:00:00Z",
+    demo: false,
+    reliability: null,
+    costGBP: null,
+    complexity: null,
+    feasible: true,
+  };
+}
+
+describe("round trips and routes that pass their end (BUG-003)", () => {
+  // home → 600 m east → 400 m north → back west → back south to home.
+  const loop = indexRoute(
+    offsetRoute([
+      [0, 0],
+      [600, 0],
+      [600, 400],
+      [0, 400],
+      [0, 0],
+    ]),
+  );
+  it("does not arrive on the first fix at home", () => {
+    for (const [e, n] of [
+      [0, 0],
+      [-4, 3],
+      [3, 6],
+      [0, 8],
+    ] as [number, number][]) {
+      const coord = offsetRoute([[e, n], [e + 1, n]]).geometry[0];
+      const s = trackFix(loop, initialTracker(), { coord, accuracyM: 12, speedMps: 0, timestamp: 1 }, "driving");
+      expect(s.status).toBe("on-route");
+      expect(s.alongM).toBeLessThan(50);
+    }
+  });
+  it("stays on route through the loop and arrives back at home", () => {
+    const { state, states } = drive(loop, mockTrace(loop, { speed: 10, noiseM: 6, accuracyM: 10 }));
+    expect(states.slice(0, -3).every((s) => s.status === "on-route")).toBe(true);
+    expect(state.status).toBe("arrived");
+  });
+  it("does not arrive mid-route where a U-shaped route passes within 20 m of its end", () => {
+    // East 1000 m, north 300 m, back west 500 m, then south to 15 m north of the
+    // first leg's midpoint. At along = 500 m the user is 15 m from the end.
+    const u = indexRoute(
+      offsetRoute([
+        [0, 0],
+        [1000, 0],
+        [1000, 300],
+        [500, 300],
+        [500, 15],
+      ]),
+    );
+    const firstLeg = drive(
+      u,
+      mockTrace(u, { speed: 10, noiseM: 0, accuracyM: 20, to: 800 }),
+    );
+    expect(firstLeg.states.some((s) => s.status === "arrived")).toBe(false);
+    const full = drive(u, mockTrace(u, { speed: 10, noiseM: 3, accuracyM: 20 }));
+    expect(full.state.status).toBe("arrived");
+  });
+});
+
+describe("U-turns and bends on 'continue' are spoken (BUG-004)", () => {
+  const raw = (steps: { e: number; n: number; type: string; modifier?: string; name?: string }[]) => {
+    const lat0 = 51.53,
+      lon0 = -0.12;
+    const k = Math.cos((lat0 * Math.PI) / 180);
+    const c = (e: number, n: number): Coord => [lon0 + e / 111_195 / k, lat0 + n / 111_195];
+    return {
+      code: "Ok",
+      routes: [
+        {
+          distance: 1500,
+          duration: 200,
+          geometry: { coordinates: steps.map((s) => c(s.e, s.n)) },
+          legs: [
+            {
+              steps: steps.map((s, i) => ({
+                distance: i < steps.length - 1 ? Math.hypot(steps[i + 1].e - s.e, steps[i + 1].n - s.n) : 0,
+                duration: 10,
+                name: s.name ?? "",
+                maneuver: {
+                  location: c(s.e, s.n),
+                  type: s.type,
+                  ...(s.modifier ? { modifier: s.modifier } : {}),
+                },
+              })),
+            },
+          ],
+        },
+      ],
+    };
+  };
+  const route = mapOsrmRoutes(
+    raw([
+      { e: 0, n: 0, type: "depart", modifier: "right", name: "Pancras Road" },
+      { e: 400, n: 0, type: "new name", modifier: "straight", name: "Goods Way" },
+      { e: 800, n: 0, type: "continue", modifier: "left", name: "Goods Way" },
+      { e: 800, n: 500, type: "continue", modifier: "uturn", name: "Goods Way" },
+      { e: 800, n: 100, type: "arrive" },
+    ]),
+    "driving",
+  )[0];
+  const index = indexRoute(route);
+  const { prompts, state } = drive(index, mockTrace(index, { speed: 10, noiseM: 0, accuracyM: 8 }));
+  it("announces the U-turn", () =>
+    expect(prompts.some((p) => /make a U-turn/i.test(p))).toBe(true));
+  it("announces a continue that turns", () =>
+    expect(prompts.some((p) => /turn left to stay on Goods Way/i.test(p))).toBe(true));
+  it("keeps a straight road-name change silent", () =>
+    expect(prompts.some((p) => /Continue onto Goods Way/i.test(p))).toBe(false));
+  it("still arrives", () => expect(state.status).toBe("arrived"));
+});

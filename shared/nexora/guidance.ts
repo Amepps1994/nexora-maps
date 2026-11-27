@@ -17,6 +17,7 @@ import {
   type Route,
   type Step,
 } from "./domain";
+import { isSilentStep } from "./maneuver";
 
 const EARTH_RADIUS_M = 6_371_008.8;
 const METRES_PER_YARD = 0.9144;
@@ -49,8 +50,6 @@ export const GUIDANCE_POLICY = {
   } as Record<GuidanceMode, number[]>,
 } as const;
 
-/** Manoeuvres that do not need a spoken prompt (road name changes only). */
-const SILENT_TYPES = new Set(["new name", "continue"]);
 
 export interface RouteIndex {
   route: Route;
@@ -113,6 +112,7 @@ function projectSegment(p: Coord, a: Coord, b: Coord) {
  * Snap a fix to the route. With a previous along-route distance, segments that
  * would move the match backwards by more than backtrackToleranceM are ignored
  * unless nothing ahead is within the off-route threshold (overlapping loops).
+ * Without one (first fix), the earliest pass within 15 m of the closest wins.
  */
 export function projectOnRoute(
   index: RouteIndex,
@@ -135,6 +135,18 @@ export function projectOnRoute(
     if (!best || offsetM < best.offsetM - 0.5) best = candidate;
     if (alongM >= minAlong && (!bestAhead || offsetM < bestAhead.offsetM - 0.5))
       bestAhead = candidate;
+  }
+  if (previousAlongM === null) {
+    // First fix: where the route passes the same place twice (a round trip
+    // starting and ending at home, a figure-of-eight), assume the user is at the
+    // earliest pass, not the end. Otherwise GPS noise can snap the very first fix
+    // to the final segment and the trip "arrives" at once (BUG-003).
+    for (let i = 0; i < g.length - 1; i++) {
+      const { t, offsetM, point } = projectSegment(p, g[i], g[i + 1]);
+      if (offsetM > best!.offsetM + 15) continue;
+      const segLen = index.cumulativeM[i + 1] - index.cumulativeM[i];
+      return { alongM: index.cumulativeM[i] + t * segLen, offsetM, point, segment: i };
+    }
   }
   if (bestAhead && bestAhead.offsetM <= best!.offsetM + 15) return bestAhead;
   return best!;
@@ -250,10 +262,16 @@ export function trackFix(
   const alongM =
     prevAlong === null ? proj.alongM : Math.max(prevAlong, proj.alongM);
   const remaining = index.totalM - alongM;
+  // Being near the final point only counts once progress is near the end of the
+  // route. Otherwise a round trip (origin = destination) or a route that loops back
+  // past its end would "arrive" on the first fix (BUG-003).
+  const nearEndOfRoute =
+    alongM >= index.totalM - Math.max(200, 2 * GUIDANCE_POLICY.arrivalRadiusM);
   const arrived =
     remaining <= GUIDANCE_POLICY.arrivalRadiusM ||
-    haversineM(fix.coord, index.route.geometry[index.route.geometry.length - 1]) <=
-      Math.min(GUIDANCE_POLICY.arrivalRadiusM, Math.max(10, accuracyM));
+    (nearEndOfRoute &&
+      haversineM(fix.coord, index.route.geometry[index.route.geometry.length - 1]) <=
+        Math.min(GUIDANCE_POLICY.arrivalRadiusM, Math.max(10, accuracyM)));
   return {
     ...base,
     status: arrived ? "arrived" : "on-route",
@@ -416,7 +434,8 @@ function lowerFirst(text: string): string {
 }
 
 function isAnnounced(step: Step | undefined): boolean {
-  return Boolean(step) && !SILENT_TYPES.has(step!.type);
+  // Road-name changes are silent; a `continue` that turns or U-turns is not (BUG-004).
+  return Boolean(step) && !isSilentStep(step!);
 }
 
 /** First step at or after `from` that gets a spoken prompt (the last step always does). */
