@@ -66,7 +66,9 @@ where to record each build and how to roll back are in [docs/RELEASE.md](docs/RE
 ## Environment variables
 
 Names only. Put real values in your private `.env` or in the Render / EAS dashboards, never in git or in an
-`EXPO_PUBLIC_*` variable unless the value is public.
+`EXPO_PUBLIC_*` variable unless the value is public. The old Manus account variables (`JWT_SECRET`, `DATABASE_URL`,
+`OAUTH_SERVER_URL` and the other `MANUS_*` / `BUILT_IN_FORGE_*` names) are no longer used once the server cleanup
+(PR #5) is merged; delete them from the Render dashboard then.
 
 | Where | Variable | Purpose |
 |---|---|---|
@@ -75,7 +77,6 @@ Names only. Put real values in your private `.env` or in the Render / EAS dashbo
 | Server | `NEXORA_TFL_APP_KEY`, `NEXORA_TFL_DISABLED`, `NEXORA_TFL_API_URL` | TfL road disruptions |
 | Server | `NEXORA_OFFLINE_DIR` | Override where offline packs are read from |
 | Server | `PORT`, `NODE_ENV` | Standard server settings |
-| Server (legacy) | `JWT_SECRET`, `DATABASE_URL`, `OAUTH_SERVER_URL`, `VITE_APP_ID`, `OWNER_OPEN_ID` | Old Manus account stack, being removed |
 | App build | `EXPO_PUBLIC_API_BASE_URL` | API the app calls (set per profile in `eas.json`) |
 | App build | `NEXORA_ANDROID_AUTO`, `NEXORA_CARPLAY` | Car display switches (`0` turns Android Auto off, `1` turns CarPlay on) |
 
