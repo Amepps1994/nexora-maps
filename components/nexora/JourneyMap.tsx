@@ -1,7 +1,20 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import {
+  ActivityIndicator,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import { WebView } from "react-native-webview";
 import { getApiBaseUrl } from "@/constants/oauth";
+import {
+  api,
+  isAllowedMapNavigation,
+  mapLoadTimers,
+  useServerState,
+} from "@/lib/nexora-api";
 import type { Coord, Place } from "@/shared/nexora/domain";
 import type { OfflineMapPack } from "@/hooks/use-offline-regions";
 
@@ -50,6 +63,9 @@ export default function JourneyMap({
   const native = useRef<WebView>(null);
   const [ready, setReady] = useState(false);
   const [failed, setFailed] = useState(false);
+  /** Still loading after 8 s: the free server is probably waking up (BUG-001). */
+  const [waiting, setWaiting] = useState(false);
+  const serverState = useServerState();
   const [attempt, setAttempt] = useState(0);
   const [fellBack, setFellBack] = useState(false);
   const url = `${getApiBaseUrl()}/api/nexora/map?attempt=${attempt}`;
@@ -62,14 +78,50 @@ export default function JourneyMap({
     setSeenMode(mode);
     setReady(false);
     setFailed(false);
+    setWaiting(false);
   }
   // The online map could not load: switch to the installed offline region instead.
   if (failed && pack && !useOffline && !fellBack) setFellBack(true);
+  // Without an offline pack, wait up to 60 s for a sleeping server instead of giving
+  // up at 10 s; with one, keep falling back to it after 10 s as before.
+  const timers = mapLoadTimers({
+    offlinePack: Boolean(pack),
+    usingOffline: useOffline,
+  });
   useEffect(() => {
     if (ready) return;
-    const timeout = setTimeout(() => setFailed(true), 10000);
-    return () => clearTimeout(timeout);
-  }, [ready, mode]);
+    if (!useOffline) api.warmUp().catch(() => {});
+    const waking =
+      timers.wakingAfterMs === null
+        ? null
+        : setTimeout(() => setWaiting(true), timers.wakingAfterMs);
+    const timeout = setTimeout(() => setFailed(true), timers.failAfterMs);
+    return () => {
+      if (waking) clearTimeout(waking);
+      clearTimeout(timeout);
+    };
+  }, [ready, mode, useOffline, timers.wakingAfterMs, timers.failAfterMs]);
+  // The 60 s warm-up gave up: no point waiting for the map page either.
+  if (serverState === "unreachable" && !ready && !failed && !useOffline)
+    setFailed(true);
+  // An early load error (e.g. Render's 502 page while booting) is retried, not shown,
+  // until the wait above runs out.
+  const reloadTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(
+    () => () => {
+      if (reloadTimer.current) clearTimeout(reloadTimer.current);
+    },
+    [],
+  );
+  function loadError() {
+    // With a pack installed, fail now so the existing fallback switches to it.
+    if (useOffline || pack || Platform.OS === "web") return setFailed(true);
+    if (reloadTimer.current) return;
+    reloadTimer.current = setTimeout(() => {
+      reloadTimer.current = null;
+      native.current?.reload();
+    }, 3000);
+  }
   const packRef = useRef(pack);
   useEffect(() => {
     packRef.current = pack;
@@ -89,6 +141,7 @@ export default function JourneyMap({
     if (message.type === "ready") {
       setReady(true);
       setFailed(false);
+      setWaiting(false);
     }
     if (message.type === "pin" && Array.isArray(message.coordinate))
       latest.current.onPin(message.coordinate);
@@ -171,12 +224,14 @@ export default function JourneyMap({
             /* ignore invalid bridge payload */
           }
         }}
-        onError={() => setFailed(true)}
-        originWhitelist={["https://*", "http://localhost:*", "about:*"]}
+        onError={loadError}
+        onHttpError={(e) => {
+          if (e.nativeEvent.statusCode >= 500) loadError();
+        }}
+        // Only the API origin and the in-memory offline page (SEC-009).
+        originWhitelist={[origin || "https://*", "about:*"]}
         onShouldStartLoadWithRequest={(req) =>
-          useOffline
-            ? req.url === "about:blank" || req.url.startsWith("data:")
-            : req.url.startsWith(url) || req.url === "about:blank"
+          isAllowedMapNavigation(req.url, url, useOffline)
         }
         style={styles.map}
       />
@@ -184,6 +239,25 @@ export default function JourneyMap({
   return (
     <View style={styles.map}>
       {frame}
+      {waiting && !ready && !failed && (
+        <View
+          style={styles.waking}
+          accessibilityRole="progressbar"
+          accessibilityLiveRegion="polite"
+          accessibilityLabel={
+            serverState === "ready"
+              ? "Loading the map"
+              : "Waking the map server"
+          }
+        >
+          <ActivityIndicator color="#087F73" />
+          <Text style={styles.wakingText}>
+            {serverState === "ready"
+              ? "Loading the map…"
+              : "Waking the map server… This can take up to a minute."}
+          </Text>
+        </View>
+      )}
       {failed && (
         <View style={styles.error}>
           <Text style={styles.errorText}>
@@ -197,7 +271,11 @@ export default function JourneyMap({
             onPress={() => {
               setReady(false);
               setFailed(false);
+              setWaiting(false);
               setFellBack(false);
+              // A failed warm-up is tried again with the map.
+              if (api.getState() === "unreachable")
+                api.warmUp().catch(() => {});
               setAttempt((a) => a + 1);
             }}
             style={{
@@ -228,4 +306,17 @@ const styles = StyleSheet.create({
     borderRadius: 20,
   },
   errorText: { color: "#0B1220", fontSize: 16 },
+  waking: {
+    position: "absolute",
+    top: "42%",
+    left: 30,
+    right: 30,
+    padding: 20,
+    backgroundColor: "#fff",
+    borderRadius: 20,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  wakingText: { color: "#0B1220", fontSize: 16, flex: 1 },
 });

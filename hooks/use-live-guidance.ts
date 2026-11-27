@@ -10,7 +10,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as Location from "expo-location";
 import * as Speech from "expo-speech";
 import { activateKeepAwakeAsync, deactivateKeepAwake } from "expo-keep-awake";
-import { rerouteDecision, type Coord, type Route } from "@/shared/nexora/domain";
+import type { Coord, Route } from "@/shared/nexora/domain";
+import { judgeRerouteCandidate } from "@/shared/nexora/reroute";
 import {
   checkStale,
   guidanceView,
@@ -165,17 +166,16 @@ export function useLiveGuidance(opts: {
         .requestReroute(state.position, stopsPassed(idx, state.alongM))
         .then((candidate) => {
           if (token !== generation.current) return;
-          const latest = trackedRef.current.state;
-          const decision = rerouteDecision({
+          // Judge the candidate on the fix that confirmed the off-route (moving), not
+          // on the fix at reply time: stopping at lights must not discard it (BUG-007).
+          const decision = judgeRerouteCandidate({
+            requested: state,
+            latest: trackedRef.current.state,
             currentRemainingS: view.remainingS,
             candidateRemainingS: candidate ? candidate.durationS : NaN,
-            mode: callbacks.current.routeMode,
-            stableUpdates: latest.offRouteSamples,
+            routeMode: callbacks.current.routeMode,
             lastRerouteAt: lastRerouteAt.current,
             now: Date.now(),
-            offRoute: latest.status === "off-route",
-            accuracyM: latest.accuracyM ?? undefined,
-            stationary: latest.speedMps === null ? undefined : latest.speedMps < 1,
           });
           if (decision.reroute && candidate) {
             lastRerouteAt.current = Date.now();
@@ -186,6 +186,8 @@ export function useLiveGuidance(opts: {
           }
         })
         .catch(() => {
+          // requestReroute has a 10 s timeout, so a hung request lands here and the
+          // finally below releases the rerouting flag.
           if (token === generation.current)
             setEvent("Reroute failed. Return to the highlighted route or stop safely.");
         })
