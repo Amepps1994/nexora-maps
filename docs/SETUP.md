@@ -33,7 +33,7 @@ hosted API runs on Render from `render.yaml`. Avoid `pnpm format` during a docum
 rewrites the whole project. No store publication, paid infrastructure, purchases or commercial terms acceptance are
 authorised.
 
-**Legacy database (Manus era, being removed).** Before API startup that needs the starter database, arrange the existing development connection privately and review/run `pnpm db:push` against that development database only. Its script runs Drizzle generation and migration; it can write migrations and modify a database. It completed successfully here against the supplied managed starter schema; no application incident/guest data uses that database. The managed database is shared by development and publication, so future migration writes also affect production data. Review changes carefully; do not assume a separate database merely because a phase is called staging. Provider/guest-only behaviour must clearly report whether database setup is needed. Backend environment credentials must never be copied into the client or committed. The empty geocoder key field in .env.example is not a credential.
+**No database.** The Manus-era MySQL / Drizzle starter database and the `db:push` script were removed on 27 Nov 2026; the API keeps no server-side user data. Backend credentials must never be copied into the client or committed. The empty geocoder key field in .env.example is not a credential.
 
 Record command, timestamp, commit, environment, exit status, output and known failures in the final delivery evidence. Tests are not assumed to pass because a script exists. See [DEVICE_TEST_PLAN.md](DEVICE_TEST_PLAN.md) for manual validation and blocked release gates.
 
