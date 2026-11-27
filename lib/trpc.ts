@@ -1,9 +1,15 @@
 import { createTRPCReact } from "@trpc/react-query";
 import { httpBatchLink } from "@trpc/client";
 import superjson from "superjson";
-import type { AppRouter } from "@/server/routers";
+import type { initTRPC } from "@trpc/server";
 import { getApiBaseUrl } from "@/constants/oauth";
 import * as Auth from "@/lib/_core/auth";
+
+// The server no longer serves tRPC (SEC-002 removed /api/trpc with the Manus stack). The
+// client keeps this provider only until the Phase 2 client cleanup removes it, so it is
+// typed against an empty router: no procedure can be called, and none is.
+declare const emptyTrpc: ReturnType<typeof initTRPC.create<{ transformer: typeof superjson }>>;
+type AppRouter = ReturnType<typeof emptyTrpc.router<{}>>;
 
 /**
  * tRPC React client for type-safe API calls.

@@ -7,6 +7,11 @@
  * and simulated guidance is always marked as simulated.
  */
 import type { NavigationState, Route, Step } from "./domain";
+import {
+  roadNameFromText,
+  stepDirection,
+  type TurnDirection,
+} from "./maneuver";
 
 export type GuidanceSource = "simulation" | "live";
 
@@ -23,15 +28,7 @@ export type CarManeuverKind =
   | "off-ramp"
   | "ferry";
 
-export type CarTurnDirection =
-  | "left"
-  | "right"
-  | "slight-left"
-  | "slight-right"
-  | "sharp-left"
-  | "sharp-right"
-  | "uturn"
-  | "straight";
+export type CarTurnDirection = TurnDirection;
 
 export interface CarManeuver {
   kind: CarManeuverKind;
@@ -109,35 +106,14 @@ function clamp01(n: number): number {
   return Math.max(0, Math.min(1, n));
 }
 
-const MODIFIERS: readonly [RegExp, CarTurnDirection][] = [
-  [/\bu-?turn\b/i, "uturn"],
-  [/\bsharp left\b/i, "sharp-left"],
-  [/\bsharp right\b/i, "sharp-right"],
-  [/\bslight left\b/i, "slight-left"],
-  [/\bslight right\b/i, "slight-right"],
-  [/\bleft\b/i, "left"],
-  [/\bright\b/i, "right"],
-];
-
-function directionFrom(text: string): CarTurnDirection {
-  for (const [re, dir] of MODIFIERS) if (re.test(text)) return dir;
-  return "straight";
-}
-
-function roadNameFrom(text: string): string | undefined {
-  const m = text.match(/\bonto\s+(.+)$/i);
-  return m ? m[1].trim() : undefined;
-}
-
 /** Map a NEXORA route step (OSRM maneuver type + instruction) to a car manoeuvre. */
 export function toCarManeuver(step: Step): CarManeuver {
   const type = (step.type || "").toLowerCase();
   const text = step.instruction || "";
-  const roadName = roadNameFrom(text);
-  // Only the part before "onto <road>" carries the modifier; road names like
-  // "Left Bank Road" must not change the arrow.
-  const head = text.replace(/\bonto\s+.+$/i, "");
-  const direction = directionFrom(head);
+  const roadName = roadNameFromText(text) ?? (step.ref || undefined);
+  // The provider modifier wins; older saved routes fall back to the text before
+  // "onto <road>", so road names like "Left Bank Road" never change the arrow.
+  const direction = stepDirection(step);
   const base = {
     instruction: text,
     coordinate: [step.coordinate[0], step.coordinate[1]] as [number, number],
@@ -151,24 +127,32 @@ export function toCarManeuver(step: Step): CarManeuver {
   if (
     type === "roundabout" ||
     type === "rotary" ||
-    type.startsWith("roundabout")
+    (type.startsWith("roundabout") && type !== "roundabout turn")
   ) {
-    const exit = head.match(/\bexit\s+(\d+)/i);
+    const textExit = text.replace(/\bonto\s+.+$/i, "").match(/\bexit\s+(\d+)/i);
+    const exit = step.exit ?? (textExit ? Number(textExit[1]) : undefined);
     return {
       ...base,
       kind: "roundabout",
       direction,
-      ...(exit ? { exit: Number(exit[1]) } : {}),
+      ...(exit ? { exit } : {}),
     };
   }
   if (type === "fork") return { ...base, kind: "fork", direction };
   if (type === "on ramp") return { ...base, kind: "on-ramp", direction };
   if (type === "off ramp") return { ...base, kind: "off-ramp", direction };
   if (type === "merge") return { ...base, kind: "keep", direction };
-  if (type === "ferry" || /\bferry\b/i.test(head))
+  if (type === "ferry" || /\bferry\b/i.test(text.replace(/\bonto\s+.+$/i, "")))
     return { ...base, kind: "ferry", direction };
-  if (type === "continue" || type === "new name" || direction === "straight")
+  // A `continue` / `new name` that bends is a real manoeuvre (BUG-004):
+  // slight bends are "keep", turns and U-turns are "turn".
+  if (direction === "straight")
     return { ...base, kind: "straight", direction: "straight" };
+  if (
+    (type === "continue" || type === "new name") &&
+    direction.startsWith("slight")
+  )
+    return { ...base, kind: "keep", direction };
   return { ...base, kind: "turn", direction };
 }
 
