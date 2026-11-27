@@ -1,0 +1,47 @@
+{
+  "checkedAt": "2026-11-26T23:39:04.157326+00:00",
+  "checks": [
+    {
+      "method": "GET",
+      "path": "/api/health",
+      "expected": 200,
+      "actual": 200,
+      "passed": true
+    },
+    {
+      "method": "GET",
+      "path": "/api/nexora/capabilities",
+      "expected": 200,
+      "actual": 200,
+      "passed": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/nexora/routes",
+      "expected": 400,
+      "actual": 400,
+      "passed": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/nexora/routes",
+      "expected": 400,
+      "actual": 400,
+      "passed": true
+    },
+    {
+      "method": "GET",
+      "path": "/api/nexora/search?q=SW1A%201AA",
+      "expected": 503,
+      "actual": 503,
+      "passed": true
+    },
+    {
+      "method": "GET",
+      "path": "/api/nexora/admin/moderation",
+      "expected": 403,
+      "actual": 403,
+      "passed": true
+    }
+  ]
+}

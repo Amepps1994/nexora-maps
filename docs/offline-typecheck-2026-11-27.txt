@@ -1,0 +1,5 @@
+npm warn Unknown project config "node-linker". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+
+> app-template@1.0.0 check C:\Users\andre\Documents\NEXORA-Maps
+> tsc --noEmit
+

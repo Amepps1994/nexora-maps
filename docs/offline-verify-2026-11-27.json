@@ -1,0 +1,78 @@
+{
+  "ok": true,
+  "region": "london",
+  "builtAt": "2026-11-27T12:11:29.368Z",
+  "source": "20261126.pmtiles",
+  "files": {
+    "tiles.pmtiles": {
+      "bytes": 56370125,
+      "sha256": "b4e92e3df12f03bcd649eb8703946cb7f1e878588cecbbd26ce7b424e83bc9f6"
+    },
+    "search.json": {
+      "bytes": 5502109,
+      "sha256": "5e76b4fdd16306342345804cdc6e56aeb002af246b03d6b86fe8e7205c4ffabd"
+    }
+  },
+  "centreTile": "14/8187/5449",
+  "centreLayers": [
+    "boundaries(1)",
+    "buildings(41)",
+    "earth(1)",
+    "landuse(359)",
+    "places(8)",
+    "pois(125)",
+    "roads(428)",
+    "water(1)"
+  ],
+  "searchEntries": 109993,
+  "sample": [
+    [
+      "Big Ben",
+      "attraction",
+      -0.12457,
+      51.5007
+    ],
+    [
+      "Hyde Park",
+      "park",
+      -0.16221,
+      51.50749
+    ],
+    [
+      "Hyde Park Apartments",
+      "apartment",
+      -0.18024,
+      51.51352
+    ],
+    [
+      "Hyde Park Avenue",
+      "minor_road",
+      -0.08928,
+      51.62889
+    ],
+    [
+      "Hyde Park Barracks",
+      "military",
+      -0.16567,
+      51.50202
+    ],
+    [
+      "Hyde Park Boutique Hotel",
+      "hotel",
+      -0.18419,
+      51.51408
+    ],
+    [
+      "Hyde Park Bowling Green",
+      "bowls",
+      -0.17373,
+      51.50278
+    ],
+    [
+      "Hyde Park Coach and Car Park",
+      "parking",
+      -0.19031,
+      51.50958
+    ]
+  ]
+}

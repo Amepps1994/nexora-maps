@@ -1,0 +1,14 @@
+
+> app-template@1.0.0 lint /tmp/claude-0/src/NEXORA_Maps
+> expo lint
+
+(node:3046) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///tmp/claude-0/src/NEXORA_Maps/eslint.config.js?mtime=1795735270000 is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /tmp/claude-0/src/NEXORA_Maps/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+/tmp/claude-0/src/NEXORA_Maps/components/nexora/NexoraApp.tsx
+  48:5  warning  React Hook useMemo has an unnecessary dependency: 'navHeight'. Either exclude it or remove the dependency array  react-hooks/exhaustive-deps
+
+✖ 1 problem (0 errors, 1 warning)
+

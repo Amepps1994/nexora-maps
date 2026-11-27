@@ -1,0 +1,28 @@
+{
+  "probedAt": "2026-11-27T00:36Z",
+  "method": "Browser fetch from a desktop browser on routing.openstreetmap.de (FOSSGIS-hosted OSRM, non-commercial test service). Requests spaced >1.1 s apart. Cloud build container could not reach the host (egress 403), so these were run from the user's linked desktop browser.",
+  "multiStop": {
+    "query": "King's Cross (-0.1240,51.5308) -> St Paul's (-0.0984,51.5138) -> Tate Modern (-0.0994,51.5076), alternatives=true",
+    "results": {
+      "car": { "status": 200, "code": "Ok", "routes": 1, "legs": [{ "distanceM": 3135.4, "durationS": 499.3, "steps": 9 }, { "distanceM": 2240.7, "durationS": 387.4, "steps": 10 }] },
+      "foot": { "status": 200, "code": "Ok", "routes": 1, "legs": [{ "distanceM": 2883.6, "durationS": 2308.1, "steps": 24 }, { "distanceM": 957.4, "durationS": 767.7, "steps": 19 }] },
+      "bike": { "status": 200, "code": "Ok", "routes": 1, "legs": [{ "distanceM": 3506.5, "durationS": 1304.6, "steps": 38 }, { "distanceM": 980.6, "durationS": 793.5, "steps": 19 }] }
+    },
+    "finding": "Multi-stop requests return one route with one leg per stop. No alternatives were returned with an intermediate stop in any profile. Each leg ends with an 'arrive' manoeuvre."
+  },
+  "avoidances": {
+    "profile": "routed-car",
+    "results": [
+      { "case": "Heathrow -> Hammersmith, no exclude", "status": 200, "code": "Ok" },
+      { "case": "exclude=motorway", "status": 400, "code": "InvalidValue", "message": "Exclude flag combination is not supported." },
+      { "case": "Grays -> Dartford, no exclude", "status": 200, "code": "Ok" },
+      { "case": "exclude=toll", "status": 400, "code": "InvalidValue", "message": "Exclude flag combination is not supported." },
+      { "case": "Woolwich, no exclude", "status": 200, "code": "Ok" },
+      { "case": "exclude=ferry", "status": 400, "code": "InvalidValue", "message": "Exclude flag combination is not supported." },
+      { "case": "exclude=motorway,toll", "status": 400, "code": "InvalidValue", "message": "Exclude flag combination is not supported." },
+      { "case": "exclude=unpaved", "status": 400, "code": "InvalidValue", "message": "Exclude flag combination is not supported." }
+    ],
+    "intersectionClasses": "No intersection 'classes' were present in any returned step, so the test graph cannot disclose whether a route uses a toll, motorway or ferry.",
+    "finding": "The hosted test car graph supports no avoidances. NEXORA therefore ships avoidances disabled by default and only forwards exclude classes an operator declares in NEXORA_CAR_EXCLUDE for a self-hosted graph built with them."
+  }
+}

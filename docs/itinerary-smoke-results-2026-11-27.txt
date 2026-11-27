@@ -1,0 +1,18 @@
+ARRIVE LINE: Leave 23:51 GMT · arrive about 23:59 GMT
+PASS provider unreachable shows honest error
+PASS avoid chips present for driving
+PASS avoid unsupported note
+PASS toll chip disabled
+PASS stop search heading
+PASS stop listed in planner
+PASS leg breakdown origin->stop1
+PASS leg breakdown stop1->destination
+PASS leave now estimate
+PASS free-flow basis disclosed
+PASS arrive-by estimate
+PASS bad time message
+PASS routes cleared after adding stop
+PASS reorder moves Borough Market first
+PASS remove stop
+PASS simulation started
+PAGEERR []

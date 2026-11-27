@@ -1,0 +1,109 @@
+Command: npx vitest run (vitest 2.1.9, Node v22.23.5, Linux build container)
+Date: 2026-11-27. Dependencies installed with npm at the versions pinned in pnpm-lock.yaml (server/test subset only; Expo replaced by a tsconfig stub). Not yet re-run with pnpm on the Windows working copy.
+
+== Full suite after fixes ==
+ ✓ tests/nexora-domain.test.ts (96 tests) 37ms
+ ✓ tests/cors.test.ts (25 tests) 80ms
+ ✓ tests/security-admin-account.test.ts (72 tests | 1 skipped) 217ms
+ ✓ tests/nexora-provider.test.ts (12 tests) 9ms
+ ↓ tests/auth.logout.test.ts (1 test | 1 skipped)
+ ✓ tests/nexora-session.test.ts (6 tests) 4ms
+ ✓ tests/nexora-itinerary.test.ts (42 tests) 3359ms
+ Test Files  6 passed | 1 skipped (7)
+      Tests  252 passed | 1 skipped | 1 todo (254)
+
+== Server typecheck: npx tsc -p <strict config over server/**, shared/**, drizzle/schema.ts, tests/security-admin-account.test.ts, tests/cors.test.ts> ==
+exit 0, no diagnostics
+
+== tests/security-admin-account.test.ts, verbose, after fixes ==
+ ✓ tests/security-admin-account.test.ts > SEC-ADMIN: admin surfaces deny anonymous and non-admin callers > GET /api/nexora/admin anonymous → 403
+ ✓ tests/security-admin-account.test.ts > SEC-ADMIN: admin surfaces deny anonymous and non-admin callers > POST /api/nexora/admin anonymous → 403
+ ✓ tests/security-admin-account.test.ts > SEC-ADMIN: admin surfaces deny anonymous and non-admin callers > PUT /api/nexora/admin anonymous → 403
+ ✓ tests/security-admin-account.test.ts > SEC-ADMIN: admin surfaces deny anonymous and non-admin callers > PATCH /api/nexora/admin anonymous → 403
+ ✓ tests/security-admin-account.test.ts > SEC-ADMIN: admin surfaces deny anonymous and non-admin callers > DELETE /api/nexora/admin anonymous → 403
+ ✓ tests/security-admin-account.test.ts > SEC-ADMIN: admin surfaces deny anonymous and non-admin callers > GET /api/nexora/admin/ anonymous → 403
+ ✓ tests/security-admin-account.test.ts > SEC-ADMIN: admin surfaces deny anonymous and non-admin callers > POST /api/nexora/admin/ anonymous → 403
+ ✓ tests/security-admin-account.test.ts > SEC-ADMIN: admin surfaces deny anonymous and non-admin callers > PUT /api/nexora/admin/ anonymous → 403
+ ✓ tests/security-admin-account.test.ts > SEC-ADMIN: admin surfaces deny anonymous and non-admin callers > PATCH /api/nexora/admin/ anonymous → 403
+ ✓ tests/security-admin-account.test.ts > SEC-ADMIN: admin surfaces deny anonymous and non-admin callers > DELETE /api/nexora/admin/ anonymous → 403
+ ✓ tests/security-admin-account.test.ts > SEC-ADMIN: admin surfaces deny anonymous and non-admin callers > GET /api/nexora/admin/reports anonymous → 403
+ ✓ tests/security-admin-account.test.ts > SEC-ADMIN: admin surfaces deny anonymous and non-admin callers > POST /api/nexora/admin/reports anonymous → 403
+ ✓ tests/security-admin-account.test.ts > SEC-ADMIN: admin surfaces deny anonymous and non-admin callers > PUT /api/nexora/admin/reports anonymous → 403
+ ✓ tests/security-admin-account.test.ts > SEC-ADMIN: admin surfaces deny anonymous and non-admin callers > PATCH /api/nexora/admin/reports anonymous → 403
+ ✓ tests/security-admin-account.test.ts > SEC-ADMIN: admin surfaces deny anonymous and non-admin callers > DELETE /api/nexora/admin/reports anonymous → 403
+ ✓ tests/security-admin-account.test.ts > SEC-ADMIN: admin surfaces deny anonymous and non-admin callers > GET /api/nexora/admin/users/1/delete anonymous → 403
+ ✓ tests/security-admin-account.test.ts > SEC-ADMIN: admin surfaces deny anonymous and non-admin callers > POST /api/nexora/admin/users/1/delete anonymous → 403
+ ✓ tests/security-admin-account.test.ts > SEC-ADMIN: admin surfaces deny anonymous and non-admin callers > PUT /api/nexora/admin/users/1/delete anonymous → 403
+ ✓ tests/security-admin-account.test.ts > SEC-ADMIN: admin surfaces deny anonymous and non-admin callers > PATCH /api/nexora/admin/users/1/delete anonymous → 403
+ ✓ tests/security-admin-account.test.ts > SEC-ADMIN: admin surfaces deny anonymous and non-admin callers > DELETE /api/nexora/admin/users/1/delete anonymous → 403
+ ✓ tests/security-admin-account.test.ts > SEC-ADMIN: admin surfaces deny anonymous and non-admin callers > GET /api/nexora/ADMIN/reports anonymous → 403
+ ✓ tests/security-admin-account.test.ts > SEC-ADMIN: admin surfaces deny anonymous and non-admin callers > POST /api/nexora/ADMIN/reports anonymous → 403
+ ✓ tests/security-admin-account.test.ts > SEC-ADMIN: admin surfaces deny anonymous and non-admin callers > PUT /api/nexora/ADMIN/reports anonymous → 403
+ ✓ tests/security-admin-account.test.ts > SEC-ADMIN: admin surfaces deny anonymous and non-admin callers > PATCH /api/nexora/ADMIN/reports anonymous → 403
+ ✓ tests/security-admin-account.test.ts > SEC-ADMIN: admin surfaces deny anonymous and non-admin callers > DELETE /api/nexora/ADMIN/reports anonymous → 403
+ ✓ tests/security-admin-account.test.ts > SEC-ADMIN: admin surfaces deny anonymous and non-admin callers > GET /api/nexora/admin/..%2fcapabilities anonymous → 403
+ ✓ tests/security-admin-account.test.ts > SEC-ADMIN: admin surfaces deny anonymous and non-admin callers > POST /api/nexora/admin/..%2fcapabilities anonymous → 403
+ ✓ tests/security-admin-account.test.ts > SEC-ADMIN: admin surfaces deny anonymous and non-admin callers > PUT /api/nexora/admin/..%2fcapabilities anonymous → 403
+ ✓ tests/security-admin-account.test.ts > SEC-ADMIN: admin surfaces deny anonymous and non-admin callers > PATCH /api/nexora/admin/..%2fcapabilities anonymous → 403
+ ✓ tests/security-admin-account.test.ts > SEC-ADMIN: admin surfaces deny anonymous and non-admin callers > DELETE /api/nexora/admin/..%2fcapabilities anonymous → 403
+ ✓ tests/security-admin-account.test.ts > SEC-ADMIN: admin surfaces deny anonymous and non-admin callers > a valid admin-role session still cannot open the HTTP admin path (no admin service exists)
+ ✓ tests/security-admin-account.test.ts > SEC-ADMIN: admin surfaces deny anonymous and non-admin callers > tRPC system.notifyOwner rejects anonymous callers with FORBIDDEN
+ ✓ tests/security-admin-account.test.ts > SEC-ADMIN: admin surfaces deny anonymous and non-admin callers > tRPC system.notifyOwner rejects a signed-in non-admin with FORBIDDEN
+ ✓ tests/security-admin-account.test.ts > SEC-ADMIN: admin surfaces deny anonymous and non-admin callers > over HTTP, anonymous tRPC admin mutation is 403 and never reaches the notifier
+ ✓ tests/security-admin-account.test.ts > SEC-ADMIN: admin surfaces deny anonymous and non-admin callers > a role claim smuggled into the token does not grant admin
+ ✓ tests/security-admin-account.test.ts > SEC-ADMIN: admin surfaces deny anonymous and non-admin callers > deny-by-default inventory: every tRPC procedure outside the public allowlist rejects anonymous callers
+ ✓ tests/security-admin-account.test.ts > ACC-10: sessions resolve only to their own account > Alice's token returns Alice and Bob's returns Bob
+ ✓ tests/security-admin-account.test.ts > ACC-10: sessions resolve only to their own account > editing openId in Alice's token payload to Bob's (without re-signing) is rejected
+ ✓ tests/security-admin-account.test.ts > ACC-10: sessions resolve only to their own account > a cookie for one account plus a Bearer for another resolves to the Bearer only
+ ✓ tests/security-admin-account.test.ts > ACC-10: sessions resolve only to their own account > an invalid Bearer does not fall back to a valid cookie for another account
+ ✓ tests/security-admin-account.test.ts > ACC-10: sessions resolve only to their own account > tRPC auth.me returns only the context user and null for anonymous
+ ✓ tests/security-admin-account.test.ts > ACC-10: sessions resolve only to their own account > a validly signed token for an unknown account is rejected, not auto-provisioned, when OAuth is unreachable
+ ✓ tests/security-admin-account.test.ts > ACC-10: sessions resolve only to their own account > a cron_ openId cannot impersonate a scheduled task without upstream confirmation
+ ✓ tests/security-admin-account.test.ts > ACC-10: sessions resolve only to their own account > POST /api/auth/session will not mint a cookie from an invalid Bearer
+ ✓ tests/security-admin-account.test.ts > ACC-10: token forgery, expiry and algorithm handling > rejects a token signed with a different secret
+ ✓ tests/security-admin-account.test.ts > ACC-10: token forgery, expiry and algorithm handling > rejects an expired token
+ ✓ tests/security-admin-account.test.ts > ACC-10: token forgery, expiry and algorithm handling > rejects alg:none (unsigned) tokens
+ ✓ tests/security-admin-account.test.ts > ACC-10: token forgery, expiry and algorithm handling > rejects a token signed with HS512 using the right secret (algorithm pinned to HS256)
+ ✓ tests/security-admin-account.test.ts > ACC-10: token forgery, expiry and algorithm handling > rejects a token missing required claims
+ ✓ tests/security-admin-account.test.ts > ACC-10: token forgery, expiry and algorithm handling > rejects a token issued for another app id sharing the secret
+ ✓ tests/security-admin-account.test.ts > ACC-10: token forgery, expiry and algorithm handling > rejects non-JWT junk and empty Bearer values
+ ✓ tests/security-admin-account.test.ts > ACC-10: token forgery, expiry and algorithm handling > fails closed when JWT_SECRET is empty: cannot mint or accept sessions
+ ✓ tests/security-admin-account.test.ts > ACC-10: token forgery, expiry and algorithm handling > fails closed when JWT_SECRET is shorter than 32 bytes
+ ✓ tests/security-admin-account.test.ts > ACC-10: token forgery, expiry and algorithm handling > server-minted tokens round-trip and carry an expiry
+ ✓ tests/security-admin-account.test.ts > ACC-10: token forgery, expiry and algorithm handling > never writes the presented token to server logs
+ ✓ tests/security-admin-account.test.ts > ACC-10: session cookie handling > logout over HTTPS clears an httpOnly, Secure, __Host- cookie
+ ✓ tests/security-admin-account.test.ts > ACC-10: session cookie handling > /api/auth/session sets an httpOnly cookie only after verifying the Bearer
+ ✓ tests/security-admin-account.test.ts > SEC-ADMIN / ACC-10: no anonymous or cross-account data surface > the storage proxy refuses anonymous callers before contacting the backend
+ ✓ tests/security-admin-account.test.ts > SEC-ADMIN / ACC-10: no anonymous or cross-account data surface > the storage proxy refuses a forged token too
+ ✓ tests/security-admin-account.test.ts > SEC-ADMIN / ACC-10: no anonymous or cross-account data surface > GET /api/nexora/export exposes no data, anonymous or as another account
+ ✓ tests/security-admin-account.test.ts > SEC-ADMIN / ACC-10: no anonymous or cross-account data surface > GET /api/nexora/account/export exposes no data, anonymous or as another account
+ ✓ tests/security-admin-account.test.ts > SEC-ADMIN / ACC-10: no anonymous or cross-account data surface > DELETE /api/nexora/account exposes no data, anonymous or as another account
+ ✓ tests/security-admin-account.test.ts > SEC-ADMIN / ACC-10: no anonymous or cross-account data surface > POST /api/nexora/account/delete exposes no data, anonymous or as another account
+ ✓ tests/security-admin-account.test.ts > SEC-ADMIN / ACC-10: no anonymous or cross-account data surface > GET /api/nexora/reports exposes no data, anonymous or as another account
+ ✓ tests/security-admin-account.test.ts > SEC-ADMIN / ACC-10: no anonymous or cross-account data surface > POST /api/nexora/reports exposes no data, anonymous or as another account
+ ✓ tests/security-admin-account.test.ts > SEC-ADMIN / ACC-10: no anonymous or cross-account data surface > GET /api/nexora/users/2 exposes no data, anonymous or as another account
+ ✓ tests/security-admin-account.test.ts > SEC-ADMIN / ACC-10: no anonymous or cross-account data surface > GET /api/nexora/saved exposes no data, anonymous or as another account
+ ✓ tests/security-admin-account.test.ts > SEC-ADMIN / ACC-10: no anonymous or cross-account data surface > GET /api/nexora/history exposes no data, anonymous or as another account
+ ✓ tests/security-admin-account.test.ts > SEC-ADMIN / ACC-10: no anonymous or cross-account data surface > GET /api/nexora/shares/abc exposes no data, anonymous or as another account
+ ✓ tests/security-admin-account.test.ts > SEC-ADMIN / ACC-10: no anonymous or cross-account data surface > GET /api/users exposes no data, anonymous or as another account
+ ✓ tests/security-admin-account.test.ts > SEC-ADMIN / ACC-10: no anonymous or cross-account data surface > public endpoints carry no account data
+ Test Files  1 passed (1)
+      Tests  71 passed | 1 todo (72)
+
+== Same test file against the server code BEFORE the fixes (sdk.ts, routes.ts, storageProxy.ts reverted; app.ts kept) ==
+      Tests  9 failed | 62 passed | 1 todo (72)
+ FAIL  tests/security-admin-account.test.ts > ACC-10: token forgery, expiry and algorithm handling > fails closed when JWT_SECRET is shorter than 32 bytes
+ FAIL  tests/security-admin-account.test.ts > ACC-10: token forgery, expiry and algorithm handling > rejects a token issued for another app id sharing the secret
+ FAIL  tests/security-admin-account.test.ts > SEC-ADMIN / ACC-10: no anonymous or cross-account data surface > the storage proxy refuses a forged token too
+ FAIL  tests/security-admin-account.test.ts > SEC-ADMIN / ACC-10: no anonymous or cross-account data surface > the storage proxy refuses anonymous callers before contacting the backend
+ FAIL  tests/security-admin-account.test.ts > SEC-ADMIN: admin surfaces deny anonymous and non-admin callers > DELETE /api/nexora/admin anonymous → 403
+ FAIL  tests/security-admin-account.test.ts > SEC-ADMIN: admin surfaces deny anonymous and non-admin callers > GET /api/nexora/admin anonymous → 403
+ FAIL  tests/security-admin-account.test.ts > SEC-ADMIN: admin surfaces deny anonymous and non-admin callers > PATCH /api/nexora/admin anonymous → 403
+ FAIL  tests/security-admin-account.test.ts > SEC-ADMIN: admin surfaces deny anonymous and non-admin callers > POST /api/nexora/admin anonymous → 403
+ FAIL  tests/security-admin-account.test.ts > SEC-ADMIN: admin surfaces deny anonymous and non-admin callers > PUT /api/nexora/admin anonymous → 403
+AssertionError: expected 200 to be 401 // Object.is equality
+AssertionError: expected 404 to be 403 // Object.is equality
+AssertionError: expected 500 to be 401 // Object.is equality
+AssertionError: expected 502 to be 401 // Object.is equality
+AssertionError: promise resolved "'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.…'" instead of rejecting
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 9 ⎯⎯⎯⎯⎯⎯⎯

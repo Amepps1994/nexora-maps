@@ -1,0 +1,57 @@
+{
+  "totalM": 4190,
+  "routeRequests": [
+    {
+      "origin": [
+        -0.1238,
+        51.5308
+      ],
+      "mode": "driving"
+    },
+    {
+      "origin": [
+        -0.10691797937350019,
+        51.523572128594125
+      ],
+      "mode": "driving"
+    }
+  ],
+  "states": [
+    {
+      "label": "650m",
+      "banner": "LIVE GPS · UNVERIFIED FOR ROAD USE · Following your GPS",
+      "spoken": 3
+    },
+    {
+      "label": "off-route",
+      "banner": "LIVE GPS · UNVERIFIED FOR ROAD USE · Off route",
+      "spoken": 5
+    },
+    {
+      "label": "3300m",
+      "banner": "LIVE GPS · UNVERIFIED FOR ROAD USE · Following your GPS",
+      "spoken": 8
+    }
+  ],
+  "spoken": [
+    "Head left onto Euston Road",
+    "In 250 yards, keep slight right onto King's Cross Road",
+    "Keep slight right onto King's Cross Road",
+    "Off route. Finding a new route.",
+    "Head left onto Euston Road",
+    "In half a mile, turn left onto Southwark Street",
+    "In 350 yards, turn left onto Southwark Street",
+    "Turn left onto Southwark Street",
+    "In a quarter of a mile, turn left onto Great Guildford Street",
+    "In 300 yards, turn left onto Great Guildford Street",
+    "Turn left onto Great Guildford Street",
+    "In 200 yards, turn right onto Park Street",
+    "Turn right onto Park Street, then turn left",
+    "Arrive at your destination"
+  ],
+  "arrived": true,
+  "finalBannerExcerpt": "Map unavailable. Check your connection; this app has no offline map package.\nRetry map\n\nLive GPS guidance complete\nYou’ve arrived.\nTate Modern. Your GPS reached the end of the route. The location watch has stopped.\nBack to the map\nReview my privacy\nOnline map · demo places · test routes\n© OpenStreetMap contributors",
+  "errors": [
+    "console: Failed to load resource: the server responded with a status of 404 (Not Found)"
+  ]
+}

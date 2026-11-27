@@ -1,0 +1,4 @@
+
+> app-template@1.0.0 check /tmp/claude-0/src/NEXORA_Maps
+> tsc --noEmit
+

@@ -1,0 +1,382 @@
+{
+ "_source": "routing.openstreetmap.de routed-car, fetched 2026-11-27T00:36:27Z from the user's desktop browser; overview=simplified; bearings, weights, refs, intersections and hints removed. Real provider response, trimmed.",
+ "body": {
+  "code": "Ok",
+  "routes": [
+   {
+    "distance": 5376.1,
+    "duration": 886.7,
+    "geometry": {
+     "type": "LineString",
+     "coordinates": [
+      [
+       -0.124618,
+       51.53061
+      ],
+      [
+       -0.123885,
+       51.530089
+      ],
+      [
+       -0.122195,
+       51.530798
+      ],
+      [
+       -0.120001,
+       51.530963
+      ],
+      [
+       -0.11601,
+       51.52989
+      ],
+      [
+       -0.115346,
+       51.527661
+      ],
+      [
+       -0.110776,
+       51.525173
+      ],
+      [
+       -0.107914,
+       51.523051
+      ],
+      [
+       -0.106704,
+       51.521794
+      ],
+      [
+       -0.105351,
+       51.518717
+      ],
+      [
+       -0.104387,
+       51.514169
+      ],
+      [
+       -0.100523,
+       51.513773
+      ],
+      [
+       -0.099552,
+       51.513357
+      ],
+      [
+       -0.098437,
+       51.513284
+      ],
+      [
+       -0.095678,
+       51.512773
+      ],
+      [
+       -0.095798,
+       51.511977
+      ],
+      [
+       -0.097518,
+       51.511849
+      ],
+      [
+       -0.102875,
+       51.512073
+      ],
+      [
+       -0.104118,
+       51.511827
+      ],
+      [
+       -0.104257,
+       51.511193
+      ],
+      [
+       -0.104325,
+       51.507163
+      ],
+      [
+       -0.101053,
+       51.505974
+      ],
+      [
+       -0.097292,
+       51.505168
+      ],
+      [
+       -0.098094,
+       51.506722
+      ],
+      [
+       -0.097929,
+       51.506895
+      ],
+      [
+       -0.09908,
+       51.507138
+      ]
+     ]
+    },
+    "legs": [
+     {
+      "distance": 3135.4,
+      "duration": 499.3,
+      "steps": [
+       {
+        "distance": 77.9,
+        "duration": 16.9,
+        "name": "Pancras Road",
+        "maneuver": {
+         "location": [
+          -0.124618,
+          51.53061
+         ],
+         "type": "depart",
+         "modifier": "left"
+        }
+       },
+       {
+        "distance": 296.4,
+        "duration": 47.6,
+        "name": "Euston Road",
+        "maneuver": {
+         "location": [
+          -0.123885,
+          51.530089
+         ],
+         "type": "turn",
+         "modifier": "left"
+        }
+       },
+       {
+        "distance": 404.8,
+        "duration": 60.7,
+        "name": "King's Cross Road",
+        "maneuver": {
+         "location": [
+          -0.120001,
+          51.530963
+         ],
+         "type": "fork",
+         "modifier": "slight right"
+        }
+       },
+       {
+        "distance": 378.9,
+        "duration": 54.8,
+        "name": "King's Cross Road",
+        "maneuver": {
+         "location": [
+          -0.115742,
+          51.529015
+         ],
+         "type": "continue",
+         "modifier": "straight"
+        }
+       },
+       {
+        "distance": 1047.9,
+        "duration": 166.4,
+        "name": "Farringdon Road",
+        "maneuver": {
+         "location": [
+          -0.112912,
+          51.526375
+         ],
+         "type": "new name",
+         "modifier": "straight"
+        }
+       },
+       {
+        "distance": 493.3,
+        "duration": 83.6,
+        "name": "Farringdon Street",
+        "maneuver": {
+         "location": [
+          -0.105324,
+          51.518542
+         ],
+         "type": "new name",
+         "modifier": "straight"
+        }
+       },
+       {
+        "distance": 287.2,
+        "duration": 44.3,
+        "name": "Ludgate Hill",
+        "maneuver": {
+         "location": [
+          -0.104387,
+          51.514169
+         ],
+         "type": "turn",
+         "modifier": "left"
+        }
+       },
+       {
+        "distance": 148.9,
+        "duration": 25,
+        "name": "St Paul's Churchyard",
+        "maneuver": {
+         "location": [
+          -0.100367,
+          51.513727
+         ],
+         "type": "new name",
+         "modifier": "straight"
+        }
+       },
+       {
+        "distance": 0,
+        "duration": 0,
+        "name": "St Paul's Churchyard",
+        "maneuver": {
+         "location": [
+          -0.098437,
+          51.513284
+         ],
+         "type": "arrive",
+         "modifier": "left"
+        }
+       }
+      ]
+     },
+     {
+      "distance": 2240.7,
+      "duration": 387.4,
+      "steps": [
+       {
+        "distance": 200.2,
+        "duration": 37.6,
+        "name": "St Paul's Churchyard",
+        "maneuver": {
+         "location": [
+          -0.098437,
+          51.513284
+         ],
+         "type": "depart",
+         "modifier": "left"
+        }
+       },
+       {
+        "distance": 89.4,
+        "duration": 18.3,
+        "name": "Friday Street",
+        "maneuver": {
+         "location": [
+          -0.095678,
+          51.512773
+         ],
+         "type": "turn",
+         "modifier": "right"
+        }
+       },
+       {
+        "distance": 590.2,
+        "duration": 92.2,
+        "name": "Queen Victoria Street",
+        "maneuver": {
+         "location": [
+          -0.095798,
+          51.511977
+         ],
+         "type": "turn",
+         "modifier": "right"
+        }
+       },
+       {
+        "distance": 372.6,
+        "duration": 56.3,
+        "name": "Blackfriars Bridge",
+        "maneuver": {
+         "location": [
+          -0.104118,
+          51.511827
+         ],
+         "type": "turn",
+         "modifier": "left"
+        }
+       },
+       {
+        "distance": 149.6,
+        "duration": 28.9,
+        "name": "Blackfriars Road",
+        "maneuver": {
+         "location": [
+          -0.104348,
+          51.508487
+         ],
+         "type": "new name",
+         "modifier": "straight"
+        }
+       },
+       {
+        "distance": 542.6,
+        "duration": 97.3,
+        "name": "Southwark Street",
+        "maneuver": {
+         "location": [
+          -0.104325,
+          51.507163
+         ],
+         "type": "turn",
+         "modifier": "left"
+        }
+       },
+       {
+        "distance": 186.1,
+        "duration": 27.8,
+        "name": "Great Guildford Street",
+        "maneuver": {
+         "location": [
+          -0.097292,
+          51.505168
+         ],
+         "type": "turn",
+         "modifier": "left"
+        }
+       },
+       {
+        "distance": 22.5,
+        "duration": 7.9,
+        "name": "Park Street",
+        "maneuver": {
+         "location": [
+          -0.098094,
+          51.506722
+         ],
+         "type": "turn",
+         "modifier": "right"
+        }
+       },
+       {
+        "distance": 87.5,
+        "duration": 21.1,
+        "name": "",
+        "maneuver": {
+         "location": [
+          -0.097929,
+          51.506895
+         ],
+         "type": "turn",
+         "modifier": "left"
+        }
+       },
+       {
+        "distance": 0,
+        "duration": 0,
+        "name": "",
+        "maneuver": {
+         "location": [
+          -0.09908,
+          51.507138
+         ],
+         "type": "arrive",
+         "modifier": "straight"
+        }
+       }
+      ]
+     }
+    ]
+   }
+  ]
+ }
+}

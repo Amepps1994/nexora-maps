@@ -1,0 +1,22 @@
+# NEXORA Maps API on Render's free web service tier (replaces the Manus-hosted backend).
+# Offline packs are served from server/nexora/offline-data/london (force-added to the repo:
+# tiles.pmtiles 56 MB, search.json, manifest.json; sizes must match the manifest).
+# Secrets are NOT stored here: NEXORA_GEOCODER_KEY is entered in the Render dashboard (sync: false).
+services:
+  - type: web
+    name: nexora-api
+    runtime: node
+    plan: free
+    region: frankfurt
+    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm build
+    startCommand: node dist/index.js
+    healthCheckPath: /api/nexora/capabilities
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: "22"
+      - key: NEXORA_GEOCODER_PROVIDER
+        value: locationiq
+      - key: NEXORA_GEOCODER_KEY
+        sync: false

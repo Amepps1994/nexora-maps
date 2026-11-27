@@ -1,0 +1,11 @@
+ ✓ tests/nexora-domain.test.ts (96 tests) 40ms
+ ✓ tests/nexora-guidance.test.ts (35 tests) 219ms
+ ✓ tests/cors.test.ts (25 tests) 86ms
+ ✓ tests/nexora-provider.test.ts (12 tests) 9ms
+ ✓ tests/nexora-session.test.ts (6 tests) 4ms
+ ✓ tests/nexora-itinerary.test.ts (42 tests) 3349ms
+   ✓ POST /api/nexora/routes with stops and avoidances > forwards operator-declared exclude classes 1101ms
+   ✓ POST /api/nexora/routes with stops and avoidances > maps a provider InvalidValue rejection to an honest 422 1100ms
+   ✓ POST /api/nexora/routes with stops and avoidances > maps NoRoute with avoidances to a 404 that names the cause 1100ms
+ Test Files  6 passed | 1 skipped (7)
+      Tests  216 passed | 1 skipped (217)

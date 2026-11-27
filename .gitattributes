@@ -1,0 +1,2 @@
+server/nexora/offline-data/** -text
+*.pmtiles binary

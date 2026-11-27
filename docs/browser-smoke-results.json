@@ -1,0 +1,59 @@
+{
+  "timestamp": "2026-11-26T23:45:20.184349+00:00",
+  "surface": "Expo Web Preview browser DOM scripts",
+  "checks": [
+    {
+      "name": "destination selected from explicit demo catalogue",
+      "passed": true
+    },
+    {
+      "name": "actual walking profile and distinct alternatives",
+      "passed": true
+    },
+    {
+      "name": "relaxed scoring over known data",
+      "passed": true
+    },
+    {
+      "name": "simulation warning and hidden tabs",
+      "passed": true
+    },
+    {
+      "name": "moving report prevented",
+      "passed": true
+    },
+    {
+      "name": "pause to submit local report",
+      "passed": true
+    },
+    {
+      "name": "immediate pending review and local confirmation",
+      "passed": true
+    },
+    {
+      "name": "closure without candidate disables Resume",
+      "passed": true
+    },
+    {
+      "name": "offline cached-not-routing warning",
+      "passed": true
+    },
+    {
+      "name": "explicit recovery and simulated arrival",
+      "passed": true
+    },
+    {
+      "name": "privacy no hidden sharing",
+      "passed": true
+    },
+    {
+      "name": "confirmed local guest deletion",
+      "passed": true
+    },
+    {
+      "name": "bookmark persists in browser local storage",
+      "passed": true
+    }
+  ],
+  "caveat": "Not physical-device or comprehensive React-hook E2E coverage. An initial immediate-report clock assertion failed, corrected and rerun without assertion exception."
+}

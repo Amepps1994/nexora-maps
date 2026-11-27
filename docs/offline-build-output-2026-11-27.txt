@@ -1,0 +1,9 @@
+[offline] source https://build.protomaps.com/20261126.pmtiles
+[offline] fetching 1707 tiles z0-14
+[offline] 250/1707
+[offline] 500/1707
+[offline] 750/1707
+[offline] 1000/1707
+[offline] 1250/1707
+[offline] 1500/1707
+[offline] wrote C:\Users\andre\Documents\NEXORA-Maps\server\nexora\offline-data\london: 1707 tiles, 56.4 MB; 109993 search entries

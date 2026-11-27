@@ -1,0 +1,132 @@
+npm warn Unknown project config "node-linker". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+
+> app-template@1.0.0 test C:\Users\andre\Documents\NEXORA-Maps
+> vitest run
+
+
+ RUN  v2.1.9 C:/Users/andre/Documents/NEXORA-Maps
+
+ ✓ tests/nexora-status.test.ts (7 tests) 3ms
+ ✓ tests/nexora-session.test.ts (6 tests) 2ms
+ ✓ tests/nexora-domain.test.ts (96 tests) 18ms
+ ✓ tests/nexora-car-guidance.test.ts (29 tests) 7ms
+ ✓ tests/nexora-geocoder.test.ts (10 tests) 6ms
+ ✓ tests/nexora-provider.test.ts (12 tests) 7ms
+ ↓ tests/auth.logout.test.ts (1 test | 1 skipped)
+stdout | tests/nexora-guidance.test.ts > mock GPS drive on a real OSRM route > logs the full prompt script for review
+Head left onto Euston Road
+In 250 yards, keep slight right onto King's Cross Road
+Keep slight right onto King's Cross Road
+In half a mile, turn left onto Southwark Street
+In 300 yards, turn left onto Southwark Street
+Turn left onto Southwark Street
+In a quarter of a mile, turn left onto Great Guildford Street
+In 300 yards, turn left onto Great Guildford Street
+Turn left onto Great Guildford Street
+In 200 yards, turn right onto Park Street
+Turn right onto Park Street, then turn left
+Arrive at your destination
+
+ ✓ tests/nexora-guidance.test.ts (35 tests) 65ms
+ ✓ tests/cors.test.ts (25 tests) 83ms
+stderr | tests/security-admin-account.test.ts
+stdout | tests/security-admin-account.test.ts
+[OAuth] Client initialized
+[OAuth] ERROR: OAUTH_SERVER_URL is not configured! Set OAUTH_SERVER_URL environment variable.
+
+
+ ✓ tests/nexora-traffic.test.ts (15 tests) 34ms
+stderr | tests/security-admin-account.test.ts > SEC-ADMIN: admin surfaces deny anonymous and non-admin callers > over HTTP, anonymous tRPC admin mutation is 403 and never reaches the notifier
+[Auth] Missing session cookie
+
+stderr | tests/security-admin-account.test.ts > ACC-10: sessions resolve only to their own account > editing openId in Alice's token payload to Bob's (without re-signing) is rejected
+[Auth] Session verification failed
+[Auth] /api/auth/me failed
+
+stderr | tests/security-admin-account.test.ts > ACC-10: sessions resolve only to their own account > an invalid Bearer does not fall back to a valid cookie for another account
+[Auth] Session verification failed
+[Auth] /api/auth/me failed
+
+stderr | tests/security-admin-account.test.ts > ACC-10: sessions resolve only to their own account > a validly signed token for an unknown account is rejected, not auto-provisioned, when OAuth is unreachable
+[Auth] Failed to sync user from OAuth
+[Auth] /api/auth/me failed
+
+stderr | tests/security-admin-account.test.ts > ACC-10: sessions resolve only to their own account > a cron_ openId cannot impersonate a scheduled task without upstream confirmation
+[Auth] /api/auth/me failed
+
+stderr | tests/security-admin-account.test.ts > ACC-10: sessions resolve only to their own account > POST /api/auth/session will not mint a cookie from an invalid Bearer
+[Auth] Session verification failed
+[Auth] /api/auth/session failed
+
+stderr | tests/security-admin-account.test.ts > ACC-10: token forgery, expiry and algorithm handling > rejects a token signed with a different secret
+[Auth] Session verification failed
+[Auth] /api/auth/me failed
+
+stderr | tests/security-admin-account.test.ts > ACC-10: token forgery, expiry and algorithm handling > rejects an expired token
+[Auth] Session verification failed
+[Auth] /api/auth/me failed
+
+stderr | tests/security-admin-account.test.ts > ACC-10: token forgery, expiry and algorithm handling > rejects alg:none (unsigned) tokens
+[Auth] Session verification failed
+[Auth] /api/auth/me failed
+
+stderr | tests/security-admin-account.test.ts > ACC-10: token forgery, expiry and algorithm handling > rejects a token signed with HS512 using the right secret (algorithm pinned to HS256)
+[Auth] Session verification failed
+[Auth] /api/auth/me failed
+
+stderr | tests/security-admin-account.test.ts > ACC-10: token forgery, expiry and algorithm handling > rejects a token missing required claims
+[Auth] Session payload missing required fields
+[Auth] /api/auth/me failed
+
+stderr | tests/security-admin-account.test.ts > ACC-10: token forgery, expiry and algorithm handling > rejects a token issued for another app id sharing the secret
+[Auth] Session issued for a different app
+[Auth] /api/auth/me failed
+
+stderr | tests/security-admin-account.test.ts > ACC-10: token forgery, expiry and algorithm handling > rejects non-JWT junk and empty Bearer values
+[Auth] Missing session cookie
+[Auth] /api/auth/me failed
+[Auth] Session verification failed
+[Auth] /api/auth/me failed
+
+stderr | tests/security-admin-account.test.ts > ACC-10: token forgery, expiry and algorithm handling > rejects non-JWT junk and empty Bearer values
+[Auth] Session verification failed
+[Auth] /api/auth/me failed
+[Auth] Session verification failed
+[Auth] /api/auth/me failed
+[Auth] Session verification failed
+[Auth] /api/auth/me failed
+
+stderr | tests/security-admin-account.test.ts > ACC-10: token forgery, expiry and algorithm handling > rejects non-JWT junk and empty Bearer values
+[Auth] Session verification failed
+[Auth] /api/auth/me failed
+[Auth] Missing session cookie
+[Auth] /api/auth/me failed
+
+stderr | tests/security-admin-account.test.ts > ACC-10: token forgery, expiry and algorithm handling > fails closed when JWT_SECRET is empty: cannot mint or accept sessions
+[Auth] Session verification failed
+[Auth] /api/auth/me failed
+
+stderr | tests/security-admin-account.test.ts > ACC-10: token forgery, expiry and algorithm handling > fails closed when JWT_SECRET is shorter than 32 bytes
+[Auth] Session verification failed
+[Auth] /api/auth/me failed
+
+Fri, 27 Nov 2026 12:11:03 GMT express deprecated res.clearCookie: Passing "options.maxAge" is deprecated. In v5.0.0 of Express, this option will be ignored, as res.clearCookie will automatically set cookies to expire immediately. Please update your code to omit this option. at server\_core\oauth.ts:103:9
+stderr | tests/security-admin-account.test.ts > SEC-ADMIN / ACC-10: no anonymous or cross-account data surface > the storage proxy refuses anonymous callers before contacting the backend
+[Auth] Missing session cookie
+
+stderr | tests/security-admin-account.test.ts > SEC-ADMIN / ACC-10: no anonymous or cross-account data surface > the storage proxy refuses a forged token too
+[Auth] Session verification failed
+
+ ✓ tests/security-admin-account.test.ts (72 tests | 1 skipped) 110ms
+ ✓ tests/nexora-offline.test.ts (11 tests) 886ms
+   ✓ pack builder > writes PMTiles v3 that round-trips, with leaf directories 824ms
+ ✓ tests/nexora-itinerary.test.ts (42 tests) 3355ms
+   ✓ POST /api/nexora/routes with stops and avoidances > forwards operator-declared exclude classes 1101ms
+   ✓ POST /api/nexora/routes with stops and avoidances > maps a provider InvalidValue rejection to an honest 422 1104ms
+   ✓ POST /api/nexora/routes with stops and avoidances > maps NoRoute with avoidances to a 404 that names the cause 1111ms
+
+ Test Files  12 passed | 1 skipped (13)
+      Tests  359 passed | 1 skipped | 1 todo (361)
+   Start at  12:11:02
+   Duration  3.98s (transform 995ms, setup 0ms, collect 3.01s, tests 4.58s, environment 1ms, prepare 1.37s)
+

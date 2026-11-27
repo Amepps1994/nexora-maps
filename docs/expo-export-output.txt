@@ -1,0 +1,28 @@
+React Compiler enabled
+Starting Metro Bundler
+
+iOS Bundled 12356ms node_modules/expo-router/entry.js (1915 modules)
+Android Bundled 22566ms node_modules/expo-router/entry.js (1996 modules)
+Static rendering is enabled. Learn more: https://docs.expo.dev/router/web/static-rendering/
+λ Bundled 1374ms node_modules/@expo/router-server/node/render.js (1292 modules)
+Web Bundled 1901ms node_modules/expo-router/entry.js (1410 modules)
+
+› ios bundles (1):
+_expo/static/js/ios/entry-137f5925d18163e89b880bcb50fa45f6.hbc (5MB)
+
+› android bundles (1):
+_expo/static/js/android/entry-f20701fb493d66060578e2a8fb48e674.hbc (5.2MB)
+
+› web bundles (2):
+_expo/static/css/web-cf7c29aabab33927bb35f4cfa3150cb3.css (9.3KB)
+_expo/static/js/web/entry-455ffc50f98264f5d0077595b5709786.js (3.1MB)
+
+› Static routes (6):
+/ (index) (37KB)
+/_sitemap (18KB)
+/+not-found (18KB)
+/(tabs) (37KB)
+/dev/theme-lab (46KB)
+/oauth/callback (38KB)
+
+Exported: dist-mobile
