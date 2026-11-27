@@ -1,0 +1,55 @@
+# NEXORA Maps CI (roadmap QA-001). Free GitHub-hosted runners only; no secrets are needed.
+# `verify` should be a required status check on main, and Render should deploy only after it passes
+# (docs/RELEASE.md).
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      android_export:
+        description: "Also run the Android JS bundle export (slow)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm check
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Test
+        run: pnpm test
+
+      - name: Build server
+        run: pnpm build
+
+      - name: Android bundle export (manual runs only)
+        if: github.event_name == 'workflow_dispatch' && inputs.android_export
+        run: npx expo export --platform android --output-dir dist-mobile

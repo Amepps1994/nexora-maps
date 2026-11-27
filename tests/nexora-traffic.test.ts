@@ -182,7 +182,11 @@ describe("traffic API", () => {
   const upstream: string[] = [];
   let respond: () => Response = () =>
     new Response(JSON.stringify(feed), { status: 200 });
+  // Pin the server clock to the fixture capture time. With the real clock, disruptions in the
+  // captured feed expire (Islington ends 2026-11-27T17:00Z) and the snapshot shrinks over time.
+  let clock = at.getTime();
   beforeAll(async () => {
+    vi.spyOn(Date, "now").mockImplementation(() => clock);
     vi.spyOn(globalThis, "fetch").mockImplementation(
       async (input: any, init?: any) => {
         const url = String(input instanceof Request ? input.url : input);
@@ -251,10 +255,8 @@ describe("traffic API", () => {
 
   it("labels a previous snapshot as cached, not live, when TfL fails", async () => {
     await get();
-    const now = Date.now();
-    const spy = vi
-      .spyOn(Date, "now")
-      .mockReturnValue(now + TRAFFIC_POLICY.cacheTtlMs + 1000);
+    const now = clock;
+    clock = now + TRAFFIC_POLICY.cacheTtlMs + 1000;
     respond = () => new Response("down", { status: 500 });
     try {
       const body = await (await get()).json();
@@ -262,7 +264,7 @@ describe("traffic API", () => {
       expect(body.upstreamError).toBe(true);
       expect(body.fetchedAt).toBeTruthy();
     } finally {
-      spy.mockRestore();
+      clock = now;
     }
   });
 
