@@ -1,40 +1,100 @@
 # NEXORA Maps
 
-An original Expo / React Native journey-planning app for a private London development preview. The map, destination selection, actual test-provider route calculation, alternatives, preferences, saved places and labelled simulator are working. **Not for road guidance. Not production-ready. Not published.**
+An original Expo / React Native journey-planning app for London, with an Express API on Render. It is a private
+development preview: it is **not published, and not yet verified for road use**.
 
-## Try the vertical slice
+## What the app does today (27 Nov 2026)
 
-Open the Manus Preview. Select Tate Modern from the London demo catalogue, or use Search / a map pin / latitude, longitude. The initial manual origin is King's Cross, explicitly labelled; it is not your GPS location. Choose Find routes. Driving, walking and cycling use separate OSRM hosted test graphs. Walking on the tested London pair returned distinct alternatives. Select Relaxed to rank known duration and turn-event counts; costs and calibrated reliability remain unknown.
+- Interactive OpenStreetMap / Leaflet map (WebView on Android and iOS, iframe on web).
+- Live address and postcode search through LocationIQ (free plan, server-side key), with a London demo catalogue
+  when search is not configured.
+- Driving, walking and cycling routes from the free OSRM test graphs, with alternatives and up to three ordered stops.
+- Labelled route simulation, plus live GPS turn-by-turn guidance with spoken instructions. Live guidance has not
+  passed the device tests in [DEVICE_TEST_PLAN.md](docs/DEVICE_TEST_PLAN.md), so do not rely on it on the road.
+- Live London road disruptions from the TfL open data API.
+- An offline London pack (map tiles and search), served by the API from `server/nexora/offline-data/london/`.
+- Android Auto and lock-screen guidance ([CAR_DISPLAYS.md](docs/CAR_DISPLAYS.md)). CarPlay stays off until Apple
+  grants the entitlement. Neither has been tested in a real car.
+- Guest data (saved places, preferences, opt-in trip history) stays on the device and can be exported or deleted.
 
-Start simulation. The position, instructions and remaining values replay the selected engine route, not your movement. Pause before adding a test incident. Test reports remain device-local; Confirm is a test action, not independent public corroboration. Inject ETA jitter, GPS loss, Offline or a synthetic Closure. A closure without a verified compliant alternative blocks Resume and gives safe-stop text. Recover explicitly clears the synthetic event. Finish simulated journey and review Privacy. Actual device GPS is a foreground planning fix only; native road guidance, background tracking and speed limits are not enabled.
+Installable Android APKs are built with EAS (see [RELEASE.md](docs/RELEASE.md)) and have been tested on an x86_64
+Android emulator, not yet on a physical phone.
 
-Saved bookmarks, home/work assignments and preferences persist locally. History is opt-in and retains only simulated trip summary, not a route/GPS trace. Export produces local JSON; Delete clears guest state and precise device-origin state. No live-sharing tokens exist.
+## Local development
 
-## Development
-
-The fixed Manus starter is Expo 57, React Native 0.86, React 19.2, TypeScript and Expo Router. Keep `pnpm-lock.yaml` and the pinned package manager. The map is Leaflet in an isolated web iframe or native WebView; product UI remains React Native.
+You need Node 22 (see `.nvmrc`) and pnpm 9.12 (`corepack enable` picks the pinned version).
 
 ```sh
 pnpm install --frozen-lockfile
-pnpm db:push
-pnpm check
-pnpm lint
-pnpm test
-pnpm build
+cp .env.example .env      # then fill in the values you need, see below
+pnpm dev:server           # API on http://localhost:3000
+pnpm dev:metro            # Expo on http://localhost:8081 (web); press "a" for an Android emulator
 ```
 
-Inside Manus, Metro/API are declared and restored via managed development commands (`metro`: `pnpm dev:metro`, 8081; `api`: `pnpm dev:server`, 3000). Do not launch a duplicate process. For reproduction outside Manus, run those two scripts in separate terminals and set the public API base appropriate to your device. `pnpm dev` is for ordinary external local reproduction, not the managed process workflow.
+`pnpm dev` runs both in one terminal. To point a device or emulator at your local API, set
+`EXPO_PUBLIC_API_BASE_URL` (for example `http://10.0.2.2:3000` on the Android emulator).
 
-Live address/postcode lookup is not configured. Use `.env.example` to configure an operator-controlled Nominatim-compatible licensed/self-hosted endpoint; other provider formats require a schema adapter. Public Nominatim is intentionally rejected. OSRM public test routing is rate-limited globally to below 1 request/second, has no SLA and cannot serve production scale. No API key or paid provider is silently connected.
+Checks, the same ones CI runs on every pull request ([ci.yml](.github/workflows/ci.yml)):
+
+```sh
+pnpm check   # TypeScript
+pnpm lint    # ESLint (expo lint)
+pnpm test    # Vitest
+pnpm build   # bundles the server into dist/
+```
+
+The web-build drive script needs a fresh web export, which is not committed:
+
+```sh
+npx expo export --platform web --output-dir dist-web
+node scripts/live-guidance-web-drive.js . <output-dir>
+```
+
+## Backend on Render
+
+`render.yaml` defines the `nexora-api` web service (free plan, Frankfurt, Node 22). Render deploys every push to
+`main`: it runs `pnpm install --frozen-lockfile && pnpm build` and starts `node dist/index.js`, with
+`/api/nexora/capabilities` as the health check. The free plan sleeps after 15 minutes idle, so the first request
+after a pause can take up to a minute. Live URL: https://nexora-api-cfoh.onrender.com
+
+## Android builds (EAS)
+
+Profiles live in `eas.json`: `preview` and `production-apk` both build an internal APK and set
+`EXPO_PUBLIC_API_BASE_URL` to the Render URL. `production-apk` auto-increments the Android version code. Build steps,
+where to record each build and how to roll back are in [docs/RELEASE.md](docs/RELEASE.md).
+
+## Environment variables
+
+Names only. Put real values in your private `.env` or in the Render / EAS dashboards, never in git or in an
+`EXPO_PUBLIC_*` variable unless the value is public.
+
+| Where | Variable | Purpose |
+|---|---|---|
+| Server | `NEXORA_GEOCODER_PROVIDER`, `NEXORA_GEOCODER_URL`, `NEXORA_GEOCODER_KEY` | Live search (`locationiq`, or a licensed / self-hosted Nominatim-compatible URL) |
+| Server | `NEXORA_CAR_ROUTER`, `NEXORA_FOOT_ROUTER`, `NEXORA_BIKE_ROUTER`, `NEXORA_CAR_EXCLUDE` | OSRM routing endpoints and supported avoidances |
+| Server | `NEXORA_TFL_APP_KEY`, `NEXORA_TFL_DISABLED`, `NEXORA_TFL_API_URL` | TfL road disruptions |
+| Server | `NEXORA_OFFLINE_DIR` | Override where offline packs are read from |
+| Server | `PORT`, `NODE_ENV` | Standard server settings |
+| Server (legacy) | `JWT_SECRET`, `DATABASE_URL`, `OAUTH_SERVER_URL`, `VITE_APP_ID`, `OWNER_OPEN_ID` | Old Manus account stack, being removed |
+| App build | `EXPO_PUBLIC_API_BASE_URL` | API the app calls (set per profile in `eas.json`) |
+| App build | `NEXORA_ANDROID_AUTO`, `NEXORA_CARPLAY` | Car display switches (`0` turns Android Auto off, `1` turns CarPlay on) |
 
 ## Project map
 
-`components/nexora` contains original UI, sheets and map boundary. `hooks/use-nexora.ts` handles guest state and orchestration. `shared/nexora` is the pure tested domain, fixtures, provider validation and session layer. `server/nexora` contains Express provider endpoints and the attributed map document. `tests` covers policy, session and malformed providers plus the starter's CORS tests. `drizzle` preserves the starter migration/schema; no spatial production database is claimed. Demo seed data is `shared/nexora/fixtures.ts`; it is imported locally, never injected into a live community/database.
+- `components/nexora/`: app UI, sheets and the map boundary.
+- `hooks/`: app state, networking and live guidance.
+- `shared/nexora/`: pure, tested domain logic (routing policy, guidance, itinerary, providers).
+- `server/nexora/`: Express endpoints for routing, search, traffic and offline packs.
+- `lib/car/`, `plugins/`: Android Auto, CarPlay and lock-screen guidance.
+- `tests/`: Vitest suites.
+- `docs/`: [HANDOVER.md](docs/HANDOVER.md) (status), [SETUP.md](docs/SETUP.md) (providers and licensing),
+  [RELEASE.md](docs/RELEASE.md), [DEVICE_TEST_PLAN.md](docs/DEVICE_TEST_PLAN.md),
+  [OFFLINE_MAPS.md](docs/OFFLINE_MAPS.md), [CAR_DISPLAYS.md](docs/CAR_DISPLAYS.md),
+  [PRIVACY_SECURITY.md](docs/PRIVACY_SECURITY.md) and the roadmap in `docs/roadmap/`.
 
-See [HANDOVER.md](docs/HANDOVER.md) for actual commands/results, implemented status and limits; [SETUP.md](docs/SETUP.md) for providers, licensing and cost assumptions; [ROADMAP.md](docs/ROADMAP.md) and [FEATURE_MANIFEST.json](docs/FEATURE_MANIFEST.json) for the complete preserved requirements; [PRIVACY_SECURITY.md](docs/PRIVACY_SECURITY.md) for draft notices/moderation; [DEVICE_TEST_PLAN.md](docs/DEVICE_TEST_PLAN.md) for blocked native release gates.
+## Limits
 
-## Builds and release boundary
-
-Expo successfully exported iOS/Android/Web JavaScript bundles during this build. This is compile evidence, **not an installable APK/IPA, signed release, real-device test or store acceptance**. Use Dashboard Connect Expo / Expo Go for device preview under the supported account workflow. Dashboard can build native artifacts from the accepted checkpoint when authorised. None has been requested, created or published here.
-
-Real native navigation SDK, traffic/official closure feeds, offline map+graph+search packages, speech, CarPlay/Android Auto, EV/commercial restrictions, transit and AI remain gated. Trademark/domain clearance, DPIA/legal review and provider terms are not completed. Do not use the public demo endpoints for commercial or scaled deployment.
+The OSRM and TfL services are free public services with no uptime guarantee and strict rate limits; do not load-test
+them or use them at commercial scale. Routes carry no live traffic speeds, speed limits, lane guidance or truck / EV
+restrictions. Trademark, provider terms, privacy (DPIA) and legal review are not done, so the app must not be
+published.
