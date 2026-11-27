@@ -76,6 +76,19 @@ describe("external response validation", () => {
         { place_id: 1, display_name: "London", lon: "-.1", lat: "51.5" },
       ])[0].lat,
     ).toBe(51.5));
+  it.each([
+    ["blank", { lon: "", lat: "51.5" }],
+    ["whitespace", { lon: "-0.1", lat: "  " }],
+    ["null", { lon: null, lat: "51.5" }],
+    ["missing", { lat: "51.5" }],
+  ])("rejects a %s coordinate instead of placing it at 0,0 (GEO-005)", (_, coords) =>
+    expect(
+      geocoderSchema.safeParse([{ place_id: 1, display_name: "London", ...coords }]).success,
+    ).toBe(false));
+  it("still accepts a genuine zero coordinate", () =>
+    expect(
+      geocoderSchema.parse([{ place_id: 1, display_name: "Null Island", lon: "0", lat: 0 }])[0],
+    ).toMatchObject({ lon: 0, lat: 0 }));
   it("rejects malformed geocoder rows", () =>
     expect(
       geocoderSchema.safeParse([
