@@ -13,6 +13,7 @@ import { StatusBar } from "expo-status-bar";
 import JourneyMap from "./JourneyMap";
 import { useOfflineRegions } from "@/hooks/use-offline-regions";
 import { Badge, Button, Icon, IconButton, Mark, palette } from "./ui";
+import { maneuverIcon } from "@/shared/nexora/maneuver";
 import { Panels, type AppModel } from "./Panels";
 import { useNexora } from "@/hooks/use-nexora";
 import { useTraffic } from "@/hooks/use-traffic";
@@ -273,13 +274,7 @@ export default function NexoraApp() {
             </View>
             <View style={s.turnContent}>
               <Icon
-                name={
-                  n.step?.type.includes("arrive")
-                    ? "flag"
-                    : n.step?.instruction.toLowerCase().includes("left")
-                      ? "corner-up-left"
-                      : "corner-up-right"
-                }
+                name={maneuverIcon(n.step)}
                 size={42}
                 color={dark ? "#62D6BB" : palette.teal}
               />

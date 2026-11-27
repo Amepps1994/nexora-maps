@@ -1,4 +1,7 @@
 // Mock-GPS end-to-end drive of the live guidance path in the web build.
+// Usage: node scripts/live-guidance-web-drive.js <repo-dir> <output.json>
+// dist-web/ is not committed. Build it first from <repo-dir>:
+//   npx expo export --platform web --output-dir dist-web
 const { chromium } = require("playwright");
 const fs = require("fs");
 const http = require("http");
@@ -7,6 +10,10 @@ const W = process.argv[2];
 const OUT = process.argv[3];
 const route = JSON.parse(fs.readFileSync(path.join(W, "docs/live-route-sample.json"), "utf8")).routes[0];
 const dist = path.join(W, "dist-web");
+if (!fs.existsSync(path.join(dist, "index.html"))) {
+  console.error(`No web build at ${dist}. Run: npx expo export --platform web --output-dir dist-web`);
+  process.exit(1);
+}
 const server = http.createServer((req, res) => {
   let p = decodeURIComponent(req.url.split("?")[0]);
   let f = path.join(dist, p);

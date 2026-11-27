@@ -16,6 +16,12 @@ export interface Step {
   durationS: number;
   coordinate: Coord;
   type: string;
+  /** Provider manoeuvre modifier, e.g. "left", "slight right", "uturn". Absent on older saved routes. */
+  modifier?: string;
+  /** Roundabout exit number, 1-based, when the provider gave one. */
+  exit?: number;
+  /** Road reference such as "A40", used when the road has no name. */
+  ref?: string;
 }
 
 export interface Route {
