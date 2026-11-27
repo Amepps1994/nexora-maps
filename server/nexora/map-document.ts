@@ -32,7 +32,11 @@ html,body,#map{height:100%;width:100%;margin:0;background:#e9eeeb;font-family:Ar
     L.marker([t.point[1],t.point[0]],{icon:L.divIcon({className:'',html:'<div class="tfl'+(t.closure?' closed':'')+(t.planned?' planned':'')+'"></div>',iconSize:[14,14],iconAnchor:[7,7]}),keyboard:false,zIndexOffset:-100}).bindTooltip(label,{direction:'top'}).addTo(trafficLayer);});
    if(list.length&&!trafficAttributed){map.attributionControl.addAttribution(trafficAttribution);trafficAttributed=true;}
    if(!list.length&&trafficAttributed){map.attributionControl.removeAttribution(trafficAttribution);trafficAttributed=false;}}
-  if(d.center&&JSON.stringify(d.center)!==lastCenter){lastCenter=JSON.stringify(d.center);map.setView([d.center[1],d.center[0]],d.zoom||14,{animate:!d.reducedMotion});}
+  if(d.center&&JSON.stringify(d.center)!==lastCenter){lastCenter=JSON.stringify(d.center);var cz=d.zoom||14,cll=[d.center[1],d.center[0]];
+   // On a phone the bottom sheet covers the lower part of the map, so centring on the device
+   // position would hide the blue dot behind it. Put the point between the top controls and the sheet.
+   if(d.gps&&d.gps[0]===d.center[0]&&d.gps[1]===d.center[1]&&window.innerWidth<700){var h=window.innerHeight,top=Math.min(d.controlTop||200,h*.3),sheetTop=Math.max(top+80,h-118-Math.min(480,h*.43)),y=(top+sheetTop)/2,dy=h/2-y;if(dy>0)cll=map.unproject(map.project(cll,cz).add([0,dy]),cz);}
+   map.setView(cll,cz,{animate:!d.reducedMotion});}
   if(d.command==='zoomIn')map.zoomIn();if(d.command==='zoomOut')map.zoomOut();
   setTimeout(function(){map.invalidateSize();},100);
  };
