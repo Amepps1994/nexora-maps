@@ -398,7 +398,7 @@ export function serverBanner(
   if (!online || !state || state === "ready") return null;
   if (state === "waking")
     return {
-      text: "Waking the NEXORA server… the first search or route can take up to a minute.",
+      text: "Connecting… first search can take up to a minute.",
       warning: false,
     };
   return {
