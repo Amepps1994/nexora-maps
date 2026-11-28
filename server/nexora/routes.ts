@@ -1,6 +1,7 @@
 import type { Express, Response } from "express";
 import { z } from "zod";
 import { mapDocument } from "./map-document";
+import { map3dDocument, map3dDocumentCsp } from "./map3d-document";
 import { geocoderSchema } from "../../shared/nexora/provider";
 import {
   DailyBudget,
@@ -443,6 +444,11 @@ export function registerNexoraRoutes(app: Express, options: NexoraRouteOptions =
     // scripts and styles from this server; tiles come from OpenStreetMap.
     res.setHeader("Content-Security-Policy", mapDocumentCsp());
     res.type("html").send(mapDocument);
+  });
+  app.get("/api/nexora/map3d", (_req, res) => {
+    // MAP-3D: tilted map with 3D buildings; map data from OpenFreeMap only.
+    res.setHeader("Content-Security-Policy", map3dDocumentCsp());
+    res.type("html").send(map3dDocument);
   });
   app.post("/api/nexora/routes", async (req, res) => {
     const parsed = routeInput.safeParse(req.body);
