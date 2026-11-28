@@ -1,0 +1,836 @@
+{
+ "schema_version": "2.0",
+ "prompt": "NEXORA Maps V4 evidence-driven post-update audit (28 Nov 2026)",
+ "audit_date": "2026-11-28",
+ "audit_mode": "read-only for application code; only this directory was written",
+ "repository": "Amepps1994/nexora-maps",
+ "report_path": "docs/roadmap/reaudit-2026-11-28-05eeaca/",
+ "branch_audited": "main",
+ "head_sha": "05eeaca66eb5d5d67af53688361bb96f327ace0e",
+ "baseline_sha": "e2bd944",
+ "baseline_source": "docs/roadmap/reaudit-2026-11-28-e2bd944/AUDIT_BASELINE.json (V2 re-audit, PR #9)",
+ "delta": {
+  "commits": 12,
+  "files_changed": 88,
+  "insertions": 7784,
+  "deletions": 2183,
+  "command": "git diff --stat --ignore-cr-at-eol e2bd944 05eeaca"
+ },
+ "working_tree_status": [
+  {
+   "path": "docs/screenshots/apk-e2bd944-2026-11-28/",
+   "status": "untracked",
+   "note": "evidence for e2bd944 only; left alone"
+  }
+ ],
+ "local_branches_noted": [
+  {
+   "name": "wip/local-snap",
+   "tip": "9891fcc",
+   "pushed": false,
+   "note": "preserved (DEBT-009)"
+  },
+  {
+   "name": "claude/project-thread-2dxedb",
+   "tip": "79d5a6d",
+   "note": "holds c87485f 1.2.0 bump + pre-squash #20; content is on main via 05eeaca"
+  }
+ ],
+ "app_version": {
+  "app.config.ts": "1.2.0",
+  "package.json": "app-template 1.0.0"
+ },
+ "latest_apk": {
+  "eas_build_id": "1a370f81-99c5-4847-ab17-7a4d543f53e8",
+  "version": "1.2.0",
+  "versionCode": "5",
+  "profile": "production-apk",
+  "git_commit_recorded": null,
+  "sha256": null,
+  "note": "source provenance unproven (V4-REL-04)"
+ },
+ "commands": [
+  {
+   "cmd": "tsc --noEmit",
+   "exit": 0,
+   "duration_s": 2
+  },
+  {
+   "cmd": "vitest run (local, Node 26, Windows)",
+   "exit": 1,
+   "duration_s": 32,
+   "tests": 647,
+   "passed": 645,
+   "failed": 2,
+   "failed_file": "tests/server-lifecycle.test.ts"
+  },
+  {
+   "cmd": "CI run 46147129938",
+   "result": "success",
+   "tests": 647,
+   "passed": 647
+  },
+  {
+   "cmd": "esbuild server bundle",
+   "exit": 0
+  },
+  {
+   "cmd": "lint",
+   "result": "not run locally (pnpm not on PATH); CI lint passed"
+  }
+ ],
+ "counts": {
+  "v2_items": 78,
+  "v2_status_now": {
+   "implemented-unverified": 12,
+   "open": 26,
+   "partial": 8,
+   "owner-check": 4,
+   "verified-fixed": 20,
+   "proposal": 7,
+   "blocked": 1
+  },
+  "v4_new_items": 24,
+  "v4_new_status": {
+   "open": 17,
+   "owner-check": 2,
+   "proposal": 5
+  },
+  "total_rows": 102,
+  "active_rows": 82,
+  "active_by_priority": {
+   "P0": 2,
+   "P1": 18,
+   "P2": 30,
+   "P3": 32
+  }
+ },
+ "aliases": {
+  "V4-REL-02": "DEBT-005"
+ },
+ "items": [
+  {
+   "id": "BUG-010",
+   "priority": "P1",
+   "status": "implemented-unverified",
+   "evidence": "verified-static",
+   "phase": "1"
+  },
+  {
+   "id": "QA-004",
+   "priority": "P0",
+   "status": "open",
+   "evidence": "blocked",
+   "phase": "1"
+  },
+  {
+   "id": "QA-001",
+   "priority": "P2",
+   "status": "partial",
+   "evidence": "verified-runtime",
+   "phase": "0"
+  },
+  {
+   "id": "BUG-001",
+   "priority": "P1",
+   "status": "implemented-unverified",
+   "evidence": "verified-static",
+   "phase": "1"
+  },
+  {
+   "id": "BUG-012",
+   "priority": "P2",
+   "status": "implemented-unverified",
+   "evidence": "verified-static",
+   "phase": "1"
+  },
+  {
+   "id": "A11Y-006",
+   "priority": "P2",
+   "status": "implemented-unverified",
+   "evidence": "verified-static",
+   "phase": "1"
+  },
+  {
+   "id": "SEC-013",
+   "priority": "P1",
+   "status": "owner-check",
+   "evidence": "blocked",
+   "phase": "0"
+  },
+  {
+   "id": "BUG-011",
+   "priority": "P3",
+   "status": "verified-fixed",
+   "evidence": "verified-static",
+   "phase": "1"
+  },
+  {
+   "id": "SEC-011",
+   "priority": "P2",
+   "status": "partial",
+   "evidence": "verified-static",
+   "phase": "2"
+  },
+  {
+   "id": "SEC-006",
+   "priority": "P3",
+   "status": "verified-fixed",
+   "evidence": "verified-static",
+   "phase": "2"
+  },
+  {
+   "id": "SEC-007",
+   "priority": "P3",
+   "status": "verified-fixed",
+   "evidence": "verified-static",
+   "phase": "2"
+  },
+  {
+   "id": "QA-003",
+   "priority": "P3",
+   "status": "verified-fixed",
+   "evidence": "verified-runtime",
+   "phase": "2"
+  },
+  {
+   "id": "BUG-013",
+   "priority": "P2",
+   "status": "implemented-unverified",
+   "evidence": "verified-static",
+   "phase": "1"
+  },
+  {
+   "id": "SEC-005",
+   "priority": "P2",
+   "status": "partial",
+   "evidence": "verified-static",
+   "phase": "0"
+  },
+  {
+   "id": "UX-010",
+   "priority": "P3",
+   "status": "implemented-unverified",
+   "evidence": "verified-static",
+   "phase": "1"
+  },
+  {
+   "id": "UX-001",
+   "priority": "P3",
+   "status": "implemented-unverified",
+   "evidence": "verified-static",
+   "phase": "1"
+  },
+  {
+   "id": "OPS-005",
+   "priority": "P3",
+   "status": "owner-check",
+   "evidence": "verified-static",
+   "phase": "0"
+  },
+  {
+   "id": "QA-002",
+   "priority": "P1",
+   "status": "partial",
+   "evidence": "verified-static",
+   "phase": "2"
+  },
+  {
+   "id": "UX-009",
+   "priority": "P3",
+   "status": "implemented-unverified",
+   "evidence": "verified-static",
+   "phase": "1"
+  },
+  {
+   "id": "A11Y-001",
+   "priority": "P2",
+   "status": "open",
+   "evidence": "blocked",
+   "phase": "1"
+  },
+  {
+   "id": "UX-005",
+   "priority": "P3",
+   "status": "implemented-unverified",
+   "evidence": "verified-static",
+   "phase": "1"
+  },
+  {
+   "id": "BUG-015",
+   "priority": "P3",
+   "status": "verified-fixed",
+   "evidence": "verified-static",
+   "phase": "2"
+  },
+  {
+   "id": "BUG-008",
+   "priority": "P2",
+   "status": "open",
+   "evidence": "blocked",
+   "phase": "1"
+  },
+  {
+   "id": "BUG-009",
+   "priority": "P1",
+   "status": "open",
+   "evidence": "blocked",
+   "phase": "1"
+  },
+  {
+   "id": "OPS-002",
+   "priority": "P3",
+   "status": "verified-fixed",
+   "evidence": "verified-runtime",
+   "phase": "2"
+  },
+  {
+   "id": "UX-003",
+   "priority": "P3",
+   "status": "verified-fixed",
+   "evidence": "verified-static",
+   "phase": "2"
+  },
+  {
+   "id": "PRIV-001",
+   "priority": "P2",
+   "status": "implemented-unverified",
+   "evidence": "verified-static",
+   "phase": "1"
+  },
+  {
+   "id": "OPS-001",
+   "priority": "P3",
+   "status": "verified-fixed",
+   "evidence": "verified-static",
+   "phase": "2"
+  },
+  {
+   "id": "BUG-006",
+   "priority": "P3",
+   "status": "verified-fixed",
+   "evidence": "verified-static",
+   "phase": "2"
+  },
+  {
+   "id": "OPS-006",
+   "priority": "P3",
+   "status": "verified-fixed",
+   "evidence": "verified-static",
+   "phase": "2"
+  },
+  {
+   "id": "BUG-014",
+   "priority": "P3",
+   "status": "implemented-unverified",
+   "evidence": "verified-static",
+   "phase": "1"
+  },
+  {
+   "id": "FEAT-001",
+   "priority": "P2",
+   "status": "open",
+   "evidence": "blocked",
+   "phase": "1"
+  },
+  {
+   "id": "GEO-004",
+   "priority": "P3",
+   "status": "verified-fixed",
+   "evidence": "verified-static",
+   "phase": "2"
+  },
+  {
+   "id": "DEBT-002",
+   "priority": "P2",
+   "status": "partial",
+   "evidence": "verified-static",
+   "phase": "2"
+  },
+  {
+   "id": "UX-002",
+   "priority": "P2",
+   "status": "open",
+   "evidence": "verified-static",
+   "phase": "2"
+  },
+  {
+   "id": "UX-004",
+   "priority": "P3",
+   "status": "verified-fixed",
+   "evidence": "verified-static",
+   "phase": "2"
+  },
+  {
+   "id": "A11Y-003",
+   "priority": "P2",
+   "status": "open",
+   "evidence": "suspected",
+   "phase": "2"
+  },
+  {
+   "id": "QA-006",
+   "priority": "P3",
+   "status": "verified-fixed",
+   "evidence": "verified-static",
+   "phase": "2"
+  },
+  {
+   "id": "SEC-008",
+   "priority": "P3",
+   "status": "verified-fixed",
+   "evidence": "verified-static",
+   "phase": "2"
+  },
+  {
+   "id": "DEBT-005",
+   "priority": "P1",
+   "status": "owner-check",
+   "evidence": "verified-static",
+   "phase": "3"
+  },
+  {
+   "id": "OPS-007",
+   "priority": "P3",
+   "status": "verified-fixed",
+   "evidence": "verified-static",
+   "phase": "2"
+  },
+  {
+   "id": "GEO-001",
+   "priority": "P2",
+   "status": "open",
+   "evidence": "suspected",
+   "phase": "2"
+  },
+  {
+   "id": "SEC-002",
+   "priority": "P3",
+   "status": "verified-fixed",
+   "evidence": "verified-static",
+   "phase": "2"
+  },
+  {
+   "id": "BUG-007",
+   "priority": "P2",
+   "status": "open",
+   "evidence": "blocked",
+   "phase": "1"
+  },
+  {
+   "id": "FEAT-005",
+   "priority": "P3",
+   "status": "verified-fixed",
+   "evidence": "verified-static",
+   "phase": "2"
+  },
+  {
+   "id": "DOC-003",
+   "priority": "P1",
+   "status": "partial",
+   "evidence": "verified-static",
+   "phase": "1"
+  },
+  {
+   "id": "GEO-002",
+   "priority": "P2",
+   "status": "open",
+   "evidence": "verified-static",
+   "phase": "2"
+  },
+  {
+   "id": "PERF-001",
+   "priority": "P2",
+   "status": "open",
+   "evidence": "verified-static",
+   "phase": "2"
+  },
+  {
+   "id": "A11Y-002",
+   "priority": "P2",
+   "status": "partial",
+   "evidence": "verified-static",
+   "phase": "2"
+  },
+  {
+   "id": "FEAT-003",
+   "priority": "P3",
+   "status": "proposal",
+   "evidence": "proposal",
+   "phase": "3"
+  },
+  {
+   "id": "GEO-003",
+   "priority": "P1",
+   "status": "open",
+   "evidence": "verified-static",
+   "phase": "2"
+  },
+  {
+   "id": "A11Y-004",
+   "priority": "P2",
+   "status": "open",
+   "evidence": "verified-static",
+   "phase": "2"
+  },
+  {
+   "id": "FEAT-006",
+   "priority": "P3",
+   "status": "proposal",
+   "evidence": "proposal",
+   "phase": "4"
+  },
+  {
+   "id": "DEBT-003",
+   "priority": "P2",
+   "status": "open",
+   "evidence": "verified-static",
+   "phase": "3"
+  },
+  {
+   "id": "FEAT-007",
+   "priority": "P2",
+   "status": "blocked",
+   "evidence": "blocked",
+   "phase": "4"
+  },
+  {
+   "id": "DEBT-001",
+   "priority": "P3",
+   "status": "verified-fixed",
+   "evidence": "verified-static",
+   "phase": "2"
+  },
+  {
+   "id": "SEC-012",
+   "priority": "P3",
+   "status": "verified-fixed",
+   "evidence": "verified-static",
+   "phase": "2"
+  },
+  {
+   "id": "PERF-004",
+   "priority": "P3",
+   "status": "verified-fixed",
+   "evidence": "verified-static",
+   "phase": "2"
+  },
+  {
+   "id": "DOC-002",
+   "priority": "P3",
+   "status": "open",
+   "evidence": "verified-static",
+   "phase": "2"
+  },
+  {
+   "id": "UX-006",
+   "priority": "P3",
+   "status": "open",
+   "evidence": "suspected",
+   "phase": "3"
+  },
+  {
+   "id": "A11Y-005",
+   "priority": "P2",
+   "status": "open",
+   "evidence": "verified-static",
+   "phase": "2"
+  },
+  {
+   "id": "OPS-008",
+   "priority": "P3",
+   "status": "open",
+   "evidence": "verified-runtime",
+   "phase": "0"
+  },
+  {
+   "id": "GEO-007",
+   "priority": "P3",
+   "status": "open",
+   "evidence": "verified-static",
+   "phase": "3"
+  },
+  {
+   "id": "DEBT-007",
+   "priority": "P3",
+   "status": "open",
+   "evidence": "verified-static",
+   "phase": "3"
+  },
+  {
+   "id": "DEBT-009",
+   "priority": "P3",
+   "status": "owner-check",
+   "evidence": "verified-static",
+   "phase": "0"
+  },
+  {
+   "id": "DEBT-006",
+   "priority": "P3",
+   "status": "partial",
+   "evidence": "verified-static",
+   "phase": "3"
+  },
+  {
+   "id": "PRIV-002",
+   "priority": "P3",
+   "status": "proposal",
+   "evidence": "verified-static",
+   "phase": "3"
+  },
+  {
+   "id": "FEAT-002",
+   "priority": "P3",
+   "status": "proposal",
+   "evidence": "proposal",
+   "phase": "4"
+  },
+  {
+   "id": "GEO-006",
+   "priority": "P3",
+   "status": "open",
+   "evidence": "verified-static",
+   "phase": "3"
+  },
+  {
+   "id": "UX-007",
+   "priority": "P3",
+   "status": "implemented-unverified",
+   "evidence": "verified-static",
+   "phase": "1"
+  },
+  {
+   "id": "QA-005",
+   "priority": "P3",
+   "status": "open",
+   "evidence": "verified-static",
+   "phase": "3"
+  },
+  {
+   "id": "FEAT-004",
+   "priority": "P3",
+   "status": "proposal",
+   "evidence": "proposal",
+   "phase": "3"
+  },
+  {
+   "id": "UX-011",
+   "priority": "P3",
+   "status": "open",
+   "evidence": "verified-static",
+   "phase": "3"
+  },
+  {
+   "id": "PRIV-003",
+   "priority": "P3",
+   "status": "open",
+   "evidence": "verified-static",
+   "phase": "3"
+  },
+  {
+   "id": "PERF-003",
+   "priority": "P3",
+   "status": "open",
+   "evidence": "verified-static",
+   "phase": "4"
+  },
+  {
+   "id": "UX-008",
+   "priority": "P3",
+   "status": "open",
+   "evidence": "verified-static",
+   "phase": "3"
+  },
+  {
+   "id": "I18N-001",
+   "priority": "P3",
+   "status": "proposal",
+   "evidence": "verified-static",
+   "phase": "4"
+  },
+  {
+   "id": "FEAT-008",
+   "priority": "P3",
+   "status": "proposal",
+   "evidence": "proposal",
+   "phase": "4"
+  },
+  {
+   "id": "V4-POI-08",
+   "priority": "P1",
+   "status": "open",
+   "evidence": "verified-static",
+   "phase": "1"
+  },
+  {
+   "id": "V4-POI-01",
+   "priority": "P1",
+   "status": "open",
+   "evidence": "verified-static",
+   "phase": "2"
+  },
+  {
+   "id": "V4-POI-03",
+   "priority": "P1",
+   "status": "open",
+   "evidence": "verified-static",
+   "phase": "2"
+  },
+  {
+   "id": "V4-MAP-01",
+   "priority": "P1",
+   "status": "open",
+   "evidence": "verified-static",
+   "phase": "2"
+  },
+  {
+   "id": "V4-MAP-02",
+   "priority": "P1",
+   "status": "open",
+   "evidence": "verified-static",
+   "phase": "2"
+  },
+  {
+   "id": "V4-MAP-03",
+   "priority": "P1",
+   "status": "open",
+   "evidence": "verified-static",
+   "phase": "2"
+  },
+  {
+   "id": "V4-MAP-04",
+   "priority": "P1",
+   "status": "open",
+   "evidence": "verified-static",
+   "phase": "2"
+  },
+  {
+   "id": "V4-MAP-05",
+   "priority": "P2",
+   "status": "open",
+   "evidence": "suspected",
+   "phase": "2"
+  },
+  {
+   "id": "V4-POI-07",
+   "priority": "P2",
+   "status": "open",
+   "evidence": "verified-static",
+   "phase": "2"
+  },
+  {
+   "id": "V4-POI-06",
+   "priority": "P2",
+   "status": "open",
+   "evidence": "verified-static",
+   "phase": "2"
+  },
+  {
+   "id": "V4-POI-04",
+   "priority": "P2",
+   "status": "open",
+   "evidence": "verified-static",
+   "phase": "2"
+  },
+  {
+   "id": "V4-POI-02",
+   "priority": "P2",
+   "status": "open",
+   "evidence": "verified-static",
+   "phase": "2"
+  },
+  {
+   "id": "V4-POI-05",
+   "priority": "P2",
+   "status": "open",
+   "evidence": "verified-static",
+   "phase": "2"
+  },
+  {
+   "id": "V4-REL-01",
+   "priority": "P0",
+   "status": "owner-check",
+   "evidence": "verified-static",
+   "phase": "1"
+  },
+  {
+   "id": "V4-REL-04",
+   "priority": "P1",
+   "status": "open",
+   "evidence": "verified-runtime",
+   "phase": "0"
+  },
+  {
+   "id": "V4-NAV-01",
+   "priority": "P1",
+   "status": "open",
+   "evidence": "suspected",
+   "phase": "1"
+  },
+  {
+   "id": "V4-REL-03",
+   "priority": "P1",
+   "status": "owner-check",
+   "evidence": "blocked",
+   "phase": "0"
+  },
+  {
+   "id": "V4-PRIV-04",
+   "priority": "P3",
+   "status": "open",
+   "evidence": "verified-static",
+   "phase": "2"
+  },
+  {
+   "id": "V4-OPS-09",
+   "priority": "P3",
+   "status": "open",
+   "evidence": "verified-static",
+   "phase": "2"
+  },
+  {
+   "id": "V4-FEAT-01",
+   "priority": "P2",
+   "status": "proposal",
+   "evidence": "proposal",
+   "phase": "3"
+  },
+  {
+   "id": "V4-FEAT-02",
+   "priority": "P2",
+   "status": "proposal",
+   "evidence": "proposal",
+   "phase": "3"
+  },
+  {
+   "id": "V4-FEAT-03",
+   "priority": "P3",
+   "status": "proposal",
+   "evidence": "proposal",
+   "phase": "3"
+  },
+  {
+   "id": "V4-FEAT-04",
+   "priority": "P3",
+   "status": "proposal",
+   "evidence": "proposal",
+   "phase": "3"
+  },
+  {
+   "id": "V4-FEAT-05",
+   "priority": "P3",
+   "status": "proposal",
+   "evidence": "proposal",
+   "phase": "4"
+  }
+ ],
+ "known_unknowns": [
+  "No device, emulator or DHU run for 1.2.0 (QA-004)",
+  "Which commit EAS build 5 contains (V4-REL-04)",
+  "Render auto-deploy/CI gating and trust-proxy hop count (QA-001, SEC-005)",
+  "Whether old secrets are retired (SEC-013, V4-REL-03)",
+  "Live provider behaviour was not exercised (no live quota spent)",
+  "3D findings are static reads; no WebGL runtime test was run"
+ ],
+ "next_audit_instructions": "Use head_sha above as the baseline. Keep these IDs. Re-check V4-POI-08, V4-MAP-01..04 and V4-POI-01/03 first; then mark implemented-unverified items done only with dated device evidence on a build whose commit is recorded."
+}
