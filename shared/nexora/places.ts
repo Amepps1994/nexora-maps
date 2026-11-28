@@ -202,6 +202,77 @@ export function mapOverpassElements(
   return out;
 }
 
+/**
+ * LocationIQ Nearby `tag` values (OSM class:type, comma-separated) matching each category.
+ * Used only when Overpass is unavailable; it cannot filter on `wikidata`, so highlights are
+ * broader there.
+ */
+export const LOCATIONIQ_NEARBY_TAGS: Record<PlaceCategory, string> = {
+  highlights:
+    "tourism:attraction,tourism:museum,tourism:gallery,tourism:viewpoint,tourism:zoo,tourism:aquarium,tourism:theme_park",
+  culture:
+    "tourism:museum,tourism:gallery,tourism:attraction,amenity:theatre,amenity:arts_centre,amenity:cinema",
+  parks: "leisure:park,leisure:garden,leisure:nature_reserve",
+  stations: "railway:station,railway:halt,public_transport:station",
+  food: "amenity:restaurant,amenity:cafe,amenity:fast_food,amenity:pub",
+  fuel: "amenity:fuel,amenity:charging_station",
+  parking: "amenity:parking",
+};
+
+const locationIqItem = z.object({
+  osm_type: z.string().optional(),
+  osm_id: z.union([z.string(), z.number()]).optional(),
+  place_id: z.union([z.string(), z.number()]).optional(),
+  lat: z.coerce.number(),
+  lon: z.coerce.number(),
+  class: z.string().optional(),
+  type: z.string().optional(),
+  name: z.string().optional(),
+  display_name: z.string().optional(),
+  address: z.record(z.string(), z.unknown()).optional(),
+});
+
+/** Map a LocationIQ Nearby reply (a JSON array) to cache entries, like `mapOverpassElements`. */
+export function mapLocationIqNearby(
+  category: PlaceCategory,
+  raw: unknown,
+): NearbyEntry[] {
+  if (!Array.isArray(raw)) throw new TypeError("Unexpected LocationIQ reply");
+  const seen = new Set<string>();
+  const out: NearbyEntry[] = [];
+  for (const item of raw) {
+    const p = locationIqItem.safeParse(item);
+    if (!p.success) continue;
+    const d = p.data;
+    const name = (d.name || d.display_name?.split(",")[0] || "").trim();
+    if (!name) continue;
+    const coordinate: Coord = [Number(d.lon.toFixed(6)), Number(d.lat.toFixed(6))];
+    if (!validateCoord(coordinate)) continue;
+    const key = `${name.toLowerCase()}|${coordinate[0].toFixed(2)},${coordinate[1].toFixed(2)}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const addr = d.address ?? {};
+    const area = [addr.suburb, addr.neighbourhood, addr.road, addr.city].find(
+      (v): v is string => typeof v === "string" && v.trim() !== "",
+    );
+    const osmType = (d.osm_type ?? "").toLowerCase();
+    const id =
+      d.osm_id !== undefined && /^(node|way|relation)$/.test(osmType)
+        ? `osm-${osmType}-${d.osm_id}`
+        : `liq-${d.place_id ?? key}`;
+    out.push({
+      id,
+      name: name.slice(0, 120),
+      coordinate,
+      category: PLACE_CATEGORIES[category].label,
+      kind: (d.type && KIND_LABELS[d.type]) || "Place",
+      ...(area ? { area: area.slice(0, 80) } : {}),
+      source: PLACES_ATTRIBUTION,
+    });
+  }
+  return out;
+}
+
 export function formatDistance(m: number): string {
   if (m < 950) return `${Math.max(10, Math.round(m / 10) * 10)} m`;
   return `${(m / 1000).toFixed(m < 9950 ? 1 : 0)} km`;

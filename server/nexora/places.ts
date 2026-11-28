@@ -4,21 +4,26 @@
  * Live nearby places from OpenStreetMap via the public Overpass API: free, no key, ODbL data.
  * Requests are snapped to ~500 m cells and cached (default 6 h) so a busy area costs one
  * upstream call; calls go one at a time with a gap (Overpass fair use), with a mirror tried
- * when the main instance fails. No query text, coordinates or key are logged.
+ * when the main instance fails, and LocationIQ Nearby as a last resort when a key is set.
+ * No query text, coordinates or key are logged.
  */
 import type { Express } from "express";
 import { z } from "zod";
-import { SearchCache } from "./geocoder";
+import { DailyBudget, SearchCache, resolveGeocoder } from "./geocoder";
 import { ProviderQueue, QueueFullError, RateLimiter } from "./routes";
 import {
+  LOCATIONIQ_NEARBY_TAGS,
   PLACES_ATTRIBUTION,
+  PLACE_CATEGORIES,
   PLACE_CATEGORY_IDS,
   isPlaceCategory,
+  mapLocationIqNearby,
   mapOverpassElements,
   nearbyCell,
   nearestPlaces,
   overpassQuery,
   type NearbyEntry,
+  type PlaceCategory,
 } from "../../shared/nexora/places";
 
 type Env = Record<string, string | undefined>;
@@ -48,9 +53,64 @@ export type PlacesOptions = {
   perMinute?: number;
   /** Whole-request time budget (default 14 s; below the app's timeout). */
   budgetMs?: number;
+  /** Most time one Overpass endpoint may take (default 5 s). */
+  attemptMs?: number;
+  /** Time kept back for the fallback when Overpass is slow (default 3.5 s). */
+  fallbackReserveMs?: number;
+  /** Gap between fallback calls (default 1000 ms). */
+  fallbackSpacingMs?: number;
   now?: () => number;
   env?: Env;
 };
+
+const PLACES_USER_AGENT =
+  "NEXORA-Maps/1.2 (private non-commercial development preview)";
+
+/**
+ * Overpass is a volunteer service and is sometimes overloaded for minutes at a time (502s and
+ * hangs seen on 28 Nov 2026). When the server has a LocationIQ key (the address-search key),
+ * its Nearby API, built on the same OpenStreetMap data, answers instead.
+ * NEXORA_PLACES_FALLBACK=off disables it.
+ */
+export function resolvePlacesFallback(env: Env = process.env) {
+  if ((env.NEXORA_PLACES_FALLBACK ?? "").trim().toLowerCase() === "off") return null;
+  const g = resolveGeocoder(env);
+  if (!g || g.provider !== "locationiq") return null;
+  return {
+    base: new URL("/v1/nearby", g.base.origin),
+    key: g.key,
+    attribution: g.attribution,
+  };
+}
+export type PlacesFallback = NonNullable<ReturnType<typeof resolvePlacesFallback>>;
+
+/**
+ * NEXORA_PLACES_FALLBACK_DAILY_BUDGET: fallback calls per UTC day (default 800). Together with
+ * the search budget (default 4,000) this stays under LocationIQ's free 5,000 a day.
+ */
+export const DEFAULT_PLACES_FALLBACK_DAILY_BUDGET = 800;
+export function placesFallbackDailyBudget(env: Env = process.env): number {
+  const n = Number((env.NEXORA_PLACES_FALLBACK_DAILY_BUDGET ?? "").trim());
+  return Number.isFinite(n) && n > 0
+    ? Math.floor(n)
+    : DEFAULT_PLACES_FALLBACK_DAILY_BUDGET;
+}
+
+export function buildNearbyRequest(
+  fb: PlacesFallback,
+  category: PlaceCategory,
+  at: [number, number],
+): string {
+  const url = new URL(fb.base.toString());
+  url.searchParams.set("key", fb.key);
+  url.searchParams.set("lat", String(at[1]));
+  url.searchParams.set("lon", String(at[0]));
+  url.searchParams.set("tag", LOCATIONIQ_NEARBY_TAGS[category]);
+  url.searchParams.set("radius", String(PLACE_CATEGORIES[category].radiusM));
+  url.searchParams.set("limit", "50");
+  url.searchParams.set("dedupe", "1");
+  return url.toString();
+}
 
 const query = z.object({
   category: z.string(),
@@ -60,8 +120,22 @@ const query = z.object({
 
 class UpstreamError extends Error {
   constructor(readonly status: number) {
-    super("Overpass unavailable");
+    super("Places provider unavailable");
   }
+}
+/** One Overpass endpoint ran out of its own time slot. */
+class AttemptTimeout extends Error {
+  constructor() {
+    super("Places provider took too long");
+  }
+}
+
+function failureClass(e: unknown, budgetSpent: boolean): string {
+  if (e instanceof QueueFullError) return "queue_full";
+  if (e instanceof TypeError && /Overpass|LocationIQ/.test(e.message)) return "schema";
+  if (e instanceof UpstreamError) return e.status === 429 ? "rate_limited" : "http";
+  if (budgetSpent || e instanceof AttemptTimeout) return "timeout";
+  return "network";
 }
 
 export function registerPlacesRoutes(
@@ -72,29 +146,50 @@ export function registerPlacesRoutes(
   const now = options.now ?? Date.now;
   const queue = new ProviderQueue("places", options.spacingMs ?? 1000, 5);
   const limiter = new RateLimiter(options.perMinute ?? 30, 60_000, 10_000, now);
-  const cache = new SearchCache<NearbyEntry[]>(
+  const cache = new SearchCache<{ entries: NearbyEntry[]; attribution: string }>(
     options.cacheTtlMs ?? 6 * 3600_000,
     2000,
     now,
   );
   const budgetMs = options.budgetMs ?? 14_000;
 
+  const attemptMs = options.attemptMs ?? 5000;
+  const fallbackReserveMs = options.fallbackReserveMs ?? 3500;
+  const fallback = resolvePlacesFallback(env);
+  const fallbackQueue = new ProviderQueue(
+    "places-fallback",
+    options.fallbackSpacingMs ?? 1000,
+    5,
+  );
+  const fallbackBudget = new DailyBudget(placesFallbackDailyBudget(env), now);
+
+  /**
+   * Try each Overpass endpoint, each capped at `attemptMs` so one hanging mirror cannot use
+   * the whole budget. With a fallback configured, stop early enough to leave it time.
+   */
   async function fetchOverpass(
     body: string,
     signal: AbortSignal,
+    deadline: number,
   ): Promise<unknown> {
     const urls = overpassUrls(env);
     let last: unknown = new UpstreamError(503);
     for (const url of urls) {
+      const left = deadline - Date.now() - (fallback ? fallbackReserveMs : 0);
+      if (left < 1000) break;
+      const attempt = AbortSignal.any([
+        signal,
+        AbortSignal.timeout(Math.min(attemptMs, left)),
+      ]);
       try {
-        return await queue.run(signal, async () => {
+        return await queue.run(attempt, async () => {
           const r = await fetch(url, {
             method: "POST",
-            signal,
+            signal: attempt,
             headers: {
               "Content-Type": "application/x-www-form-urlencoded",
-              "User-Agent":
-                "NEXORA-Maps/0.1 (private non-commercial development preview)",
+              Accept: "application/json",
+              "User-Agent": PLACES_USER_AGENT,
             },
             body: `data=${encodeURIComponent(body)}`,
           });
@@ -102,11 +197,35 @@ export function registerPlacesRoutes(
           return r.json();
         });
       } catch (e) {
-        if (signal.aborted || e instanceof QueueFullError) throw e;
-        last = e;
+        if (signal.aborted) throw e;
+        last = attempt.aborted ? new AttemptTimeout() : e;
       }
     }
     throw last;
+  }
+
+  /** LocationIQ Nearby (same OSM data) when Overpass is down. Spends its own daily budget. */
+  async function fetchFallback(
+    category: PlaceCategory,
+    cell: [number, number],
+    signal: AbortSignal,
+  ): Promise<NearbyEntry[]> {
+    if (!fallback) throw new UpstreamError(503);
+    if (!fallbackBudget.take()) throw new UpstreamError(429);
+    return fallbackQueue.run(signal, async () => {
+      const r = await fetch(buildNearbyRequest(fallback, category, cell), {
+        signal,
+        headers: { Accept: "application/json", "User-Agent": PLACES_USER_AGENT },
+      });
+      if (r.status === 404) return []; // LocationIQ answers "nothing nearby" with 404
+      if (r.status === 429) {
+        const text = await r.text().catch(() => "");
+        if (/day/i.test(text)) fallbackBudget.markExhausted();
+        throw new UpstreamError(429);
+      }
+      if (!r.ok) throw new UpstreamError(r.status);
+      return mapLocationIqNearby(category, await r.json());
+    });
   }
 
   app.get("/api/nexora/places", async (req, res) => {
@@ -125,12 +244,12 @@ export function registerPlacesRoutes(
     const cached = cache.get(key);
     if (cached) {
       res.json({
-        attribution: PLACES_ATTRIBUTION,
-        places: nearestPlaces(cached, from),
+        attribution: cached.attribution,
+        places: nearestPlaces(cached.entries, from),
       });
       return;
     }
-    if (!overpassUrls(env).length) {
+    if (!overpassUrls(env).length && !fallback) {
       res
         .status(503)
         .json({ error: "Nearby places are switched off on this server." });
@@ -151,31 +270,38 @@ export function registerPlacesRoutes(
       clearTimeout(timer);
     });
     const started = Date.now();
+    const deadline = started + budgetMs;
     try {
-      const data = await fetchOverpass(
-        overpassQuery(category, cell),
-        controller.signal,
-      );
-      const entries = mapOverpassElements(category, data);
-      cache.set(key, entries);
-      res.json({
-        attribution: PLACES_ATTRIBUTION,
-        places: nearestPlaces(entries, from),
-      });
+      let entries: NearbyEntry[];
+      let attribution = PLACES_ATTRIBUTION;
+      try {
+        if (!overpassUrls(env).length) throw new UpstreamError(503);
+        const data = await fetchOverpass(
+          overpassQuery(category, cell),
+          controller.signal,
+          deadline,
+        );
+        entries = mapOverpassElements(category, data);
+      } catch (e) {
+        if (controller.signal.aborted || !fallback) throw e;
+        console.warn(
+          JSON.stringify({
+            event: "provider_fallback",
+            provider: "places",
+            from: "overpass",
+            class: failureClass(e, false),
+            ...(e instanceof UpstreamError ? { status: e.status } : {}),
+            durationMs: Date.now() - started,
+          }),
+        );
+        entries = await fetchFallback(category, cell, controller.signal);
+        attribution = fallback.attribution;
+      }
+      cache.set(key, { entries, attribution });
+      res.json({ attribution, places: nearestPlaces(entries, from) });
     } catch (e) {
       if (res.headersSent || res.writableEnded) return;
-      const cls =
-        e instanceof QueueFullError
-          ? "queue_full"
-          : e instanceof TypeError && /Overpass/.test(e.message)
-            ? "schema"
-            : e instanceof UpstreamError
-              ? e.status === 429
-                ? "rate_limited"
-                : "http"
-              : controller.signal.aborted
-                ? "timeout"
-                : "network";
+      const cls = failureClass(e, controller.signal.aborted);
       console.warn(
         JSON.stringify({
           event: "provider_failure",
