@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { Redirect } from "expo-router";
 import { Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
 import { ScreenContainer } from "@/components/screen-container";
@@ -7,6 +8,7 @@ import { IconSymbol } from "@/components/ui/icon-symbol";
 import { SchemeColors, type ColorScheme } from "@/constants/theme";
 import { useColors } from "@/hooks/use-colors";
 import { useThemeContext } from "@/lib/theme-provider";
+import { DEV_TOOLS } from "@/lib/dev-tools";
 
 type PaletteName = keyof typeof SchemeColors.light;
 
@@ -24,7 +26,13 @@ function ColorSwatch({ name, value }: { name: PaletteName; value: string }) {
   );
 }
 
-export default function ThemeLabScreen() {
+/** Developer screen: release builds redirect to the map (UX-004). */
+export default function ThemeLabRoute() {
+  if (!DEV_TOOLS) return <Redirect href="/" />;
+  return <ThemeLabScreen />;
+}
+
+function ThemeLabScreen() {
   const [pressCount, setPressCount] = useState(0);
   const [lastAction, setLastAction] = useState<string>("None yet");
   const { colorScheme, setColorScheme } = useThemeContext();

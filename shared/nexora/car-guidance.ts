@@ -2,9 +2,8 @@
  * Platform-neutral guidance snapshot for car displays (Android Auto, CarPlay) and the
  * lock-screen card. Pure: no React, no native modules, no timers, no network.
  *
- * Safety rule (ROADMAP F3.4-04 / CAR-DISPLAYS): car and lock-screen surfaces are
- * unverified for road use until tested in a real car. Every snapshot carries that label,
- * and simulated guidance is always marked as simulated.
+ * Simulated guidance is always marked as simulated (with the road-use label); live GPS
+ * guidance shows a plain "Live GPS" status (product decision, 28 Nov 2026).
  */
 import type { NavigationState, Route, Step } from "./domain";
 import {
@@ -95,6 +94,8 @@ export interface CarGuidanceInput {
 }
 
 export const ROAD_USE_LABEL = "Unverified for road use";
+/** Status line for live GPS guidance on car screens and the lock-screen card. */
+export const LIVE_STATUS_LABEL = "Live GPS";
 
 const ACTIVE_STATES: readonly NavigationState[] = [
   "navigating",
@@ -178,18 +179,20 @@ function phaseFor(state: NavigationState, paused: boolean): CarGuidancePhase {
 }
 
 function statusLineFor(phase: CarGuidancePhase, simulated: boolean): string {
-  const tag = simulated ? `Simulation · ${ROAD_USE_LABEL}` : ROAD_USE_LABEL;
+  // Simulations (developer builds and offline sample routes) keep their safety
+  // label; live GPS guidance shows a plain status.
+  const tag = simulated ? `Simulation · ${ROAD_USE_LABEL}` : LIVE_STATUS_LABEL;
   switch (phase) {
     case "guiding":
       return tag;
     case "paused":
       return `Paused · ${tag}`;
     case "degraded":
-      return `GPS signal weak · position uncertain · ${ROAD_USE_LABEL}`;
+      return "GPS signal weak · position uncertain";
     case "offline":
-      return `Offline · cached route only · ${ROAD_USE_LABEL}`;
+      return "Offline · cached route only";
     case "rerouting":
-      return `Rerouting · ${ROAD_USE_LABEL}`;
+      return "Rerouting";
     case "arrived":
       return "You have arrived";
     case "preview":
@@ -307,7 +310,7 @@ export function lockScreenContent(s: CarGuidanceSnapshot): {
   if (s.phase === "arrived")
     return {
       title: s.destinationName ? `Arrived · ${s.destinationName}` : "Arrived",
-      body: ROAD_USE_LABEL,
+      body: "Guidance finished",
     };
   const title =
     s.next && s.distanceToNextM !== null

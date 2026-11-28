@@ -3,8 +3,8 @@
  * off-route rerouting through rerouteDecision(), spoken prompts and keep-awake.
  *
  * Foreground only: no background location, no foreground service. Guidance stops
- * when the app leaves the screen. UNVERIFIED FOR ROAD USE until the
- * DEVICE_TEST_PLAN live-guidance cases pass on a physical device.
+ * when the app leaves the screen. DEVICE_TEST_PLAN LG-1..LG-10 cover it on a
+ * physical device.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as Location from "expo-location";
@@ -24,6 +24,8 @@ import {
   type RouteIndex,
   type TrackerState,
 } from "@/shared/nexora/guidance";
+import type { LiveStartResult } from "@/components/nexora/screen-logic";
+import { liveWatchAttempts } from "@/lib/live-watch-options";
 
 const KEEP_AWAKE_TAG = "nexora-live-guidance";
 /** Minimum gap between reroute requests, so a confirmed off-route state cannot spam the provider. */
@@ -211,7 +213,7 @@ export function useLiveGuidance(opts: {
     deactivateKeepAwake(KEEP_AWAKE_TAG).catch(() => {});
   }, [setReroutingFlag]);
 
-  const start = useCallback(async (): Promise<boolean> => {
+  const start = useCallback(async (): Promise<LiveStartResult> => {
     stop();
     const token = ++generation.current;
     setFailure(null);
@@ -223,57 +225,97 @@ export function useLiveGuidance(opts: {
     };
     try {
       const permission = await Location.requestForegroundPermissionsAsync();
-      if (token !== generation.current) return false;
+      if (token !== generation.current) return "error";
       if (permission.status !== "granted") {
         setFailure("denied");
-        return false;
+        return permission.canAskAgain === false ? "blocked" : "denied";
       }
+      if (!(await Location.hasServicesEnabledAsync().catch(() => true))) {
+        if (token === generation.current) setFailure("error");
+        return "services-off";
+      }
+      if (token !== generation.current) return "error";
       const reset = { index: null, state: initialTracker() };
       trackedRef.current = reset;
       setTracked(reset);
-      const sub = await Location.watchPositionAsync(
-        {
-          accuracy: Location.Accuracy.BestForNavigation,
-          timeInterval: 1000,
-          distanceInterval: 2,
-        },
-        (location) => {
-          const idx = indexRef.current;
-          if (token !== generation.current || !idx) return;
-          const previous =
-            trackedRef.current.index === idx
-              ? trackedRef.current.state
-              : initialTracker();
-          const next = trackFix(
-            idx,
-            previous,
-            {
-              coord: [location.coords.longitude, location.coords.latitude],
-              accuracyM: location.coords.accuracy ?? null,
-              speedMps: location.coords.speed ?? null,
-              timestamp: location.timestamp,
-            },
-            callbacks.current.mode,
-          );
-          if (next === previous && trackedRef.current.index === idx) return;
-          publish(idx, next);
-          maybeReroute(idx, next, token);
-        },
-        () => {
-          if (token === generation.current) fail("error");
-        },
-      );
+      const attempts = liveWatchAttempts({
+        best: Location.Accuracy.BestForNavigation,
+        high: Location.Accuracy.High,
+      });
+      let attempt = 0;
+      let gotFix = false;
+      const onFix = (location: Location.LocationObject) => {
+        const idx = indexRef.current;
+        if (token !== generation.current || !idx) return;
+        gotFix = true;
+        const previous =
+          trackedRef.current.index === idx
+            ? trackedRef.current.state
+            : initialTracker();
+        const next = trackFix(
+          idx,
+          previous,
+          {
+            coord: [location.coords.longitude, location.coords.latitude],
+            accuracyM: location.coords.accuracy ?? null,
+            speedMps: location.coords.speed ?? null,
+            timestamp: location.timestamp,
+          },
+          callbacks.current.mode,
+        );
+        if (next === previous && trackedRef.current.index === idx) return;
+        publish(idx, next);
+        maybeReroute(idx, next, token);
+      };
+      // Opens the watch with the current attempt's options, moving on to the
+      // next attempt when one is rejected (Android "Location Accuracy" declined).
+      const openWatch = async (): Promise<Location.LocationSubscription> => {
+        for (;;) {
+          try {
+            return await Location.watchPositionAsync(
+              attempts[attempt],
+              onFix,
+              onError,
+            );
+          } catch (e) {
+            if (token !== generation.current || attempt + 1 >= attempts.length)
+              throw e;
+            attempt += 1;
+          }
+        }
+      };
+      // Some Android versions report the declined dialog through the error
+      // callback instead of a rejection: retry once before any fix arrives.
+      const onError = () => {
+        if (token !== generation.current) return;
+        if (!gotFix && attempt + 1 < attempts.length) {
+          attempt += 1;
+          subscription.current?.remove();
+          subscription.current = null;
+          openWatch()
+            .then((sub) => {
+              if (token !== generation.current) sub.remove();
+              else subscription.current = sub;
+            })
+            .catch(() => {
+              if (token === generation.current) fail("error");
+            });
+          return;
+        }
+        fail("error");
+      };
+      const sub = await openWatch();
       if (token !== generation.current) {
         sub.remove();
-        return false;
+        return "error";
       }
       subscription.current = sub;
       setRunning(true);
       activateKeepAwakeAsync(KEEP_AWAKE_TAG).catch(() => {});
-      return true;
+      return "ok";
     } catch {
       if (token === generation.current) setFailure("error");
-      return false;
+      return "error";
     }
   }, [stop, publish, maybeReroute]);
 
