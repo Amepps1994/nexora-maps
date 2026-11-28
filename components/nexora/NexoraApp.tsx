@@ -14,6 +14,8 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import JourneyMap from "./JourneyMap";
+import { MapViewToggle } from "./MapViewToggle";
+import { normaliseMapView, routeHeading } from "@/shared/nexora/map-view";
 import { useOfflineRegions } from "@/hooks/use-offline-regions";
 import { Badge, Button, Icon, IconButton, Mark, palette } from "./ui";
 import { maneuverIcon } from "@/shared/nexora/maneuver";
@@ -59,6 +61,7 @@ export default function NexoraApp() {
   const desktop = width >= 760;
   const landscape = width > height;
   const dark = n.prefs.dark;
+  const mapView = normaliseMapView(n.prefs.mapView);
   const surface = dark ? "#152235" : "#fff";
   const ink = dark ? "#EDF4F1" : palette.ink;
   const muted = dark ? "#A0B4AF" : palette.muted;
@@ -84,6 +87,11 @@ export default function NexoraApp() {
       gps: n.gps,
       center: n.center,
       command: n.mapCommand,
+      // MAP-3D: while guiding, the 3D camera follows the position and turns with the road.
+      follow: n.active,
+      heading: n.active
+        ? routeHeading(n.route?.geometry, n.position ?? n.gps)
+        : undefined,
       traffic: traffic.disruptions.map((d) => ({
         id: d.id,
         point: d.point,
@@ -104,6 +112,7 @@ export default function NexoraApp() {
       n.gps,
       n.center,
       n.mapCommand,
+      n.active,
       traffic.disruptions,
       mapPlaces,
     ],
@@ -272,6 +281,8 @@ export default function NexoraApp() {
           onNetwork={n.setOnline}
           offlinePack={offline.mapPack}
           preferOffline={offline.preferOffline}
+          view={mapView}
+          onViewNotice={n.setToast}
         />
       </View>
       {!n.active && n.state !== "arrived" && (
@@ -423,6 +434,11 @@ export default function NexoraApp() {
               },
             ]}
           >
+            <MapViewToggle
+              view={mapView}
+              dark={dark}
+              onChange={(v) => n.setPrefs((p) => ({ ...p, mapView: v }))}
+            />
             <IconButton
               name="layers"
               label="Map layers and appearance"

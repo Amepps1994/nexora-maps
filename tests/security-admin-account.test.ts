@@ -142,6 +142,8 @@ describe("SEC-ADMIN: deny-by-default route inventory", () => {
         "GET /api/health",
         "GET /api/nexora/capabilities",
         "GET /api/nexora/map",
+        // MAP-3D: static HTML page, no input used.
+        "GET /api/nexora/map3d",
         "GET /api/nexora/offline/regions",
         "GET /api/nexora/offline/regions/:id/:file",
         "GET /api/nexora/places",

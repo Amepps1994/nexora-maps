@@ -1295,7 +1295,7 @@ export function Panels({
         {heading("Make the map yours", "Keep only what helps your journey.")}
         {toggle(
           "Dark appearance",
-          "Display treatment of the same OSM raster map.",
+          "Darker colours for the map and app.",
           dark,
           (v) => n.setPrefs((p) => ({ ...p, dark: v })),
         )}
@@ -1311,7 +1311,19 @@ export function Panels({
           n.prefs.reducedMotion,
           (v) => n.setPrefs((p) => ({ ...p, reducedMotion: v })),
         )}
-        {row("Standard street map", "Available · OpenStreetMap raster", "map")}
+        {toggle(
+          "3D map",
+          "Tilted view with 3D buildings, turning with the road while you travel. Free OpenFreeMap vector tiles; needs internet, so the offline map stays flat.",
+          n.prefs.mapView === "3d",
+          (v) => n.setPrefs((p) => ({ ...p, mapView: v ? "3d" : "2d" })),
+        )}
+        {row(
+          n.prefs.mapView === "3d" ? "3D street map" : "Flat street map",
+          n.prefs.mapView === "3d"
+            ? "Available · OpenFreeMap vector tiles with OpenStreetMap buildings"
+            : "Available · OpenStreetMap raster",
+          "map",
+        )}
         {traffic &&
           toggle(
             "Live London disruptions",
@@ -1320,7 +1332,7 @@ export function Panels({
             traffic.setVisible,
           )}
         {row(
-          "Traffic speeds, satellite, terrain and 3D",
+          "Traffic speeds, satellite and terrain",
           "Unavailable · licensed/vector providers required",
           "layers",
         )}

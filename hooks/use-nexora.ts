@@ -33,6 +33,7 @@ import {
 } from "@/hooks/use-live-guidance";
 import { DEMO_PLACES, syntheticItinerary } from "@/shared/nexora/fixtures";
 import { PLACE_CATEGORIES, type PlaceCategory } from "@/shared/nexora/places";
+import { normaliseMapView, type MapView } from "@/shared/nexora/map-view";
 import {
   addStop,
   checkItinerary,
@@ -68,6 +69,8 @@ export type Preferences = {
   history: boolean;
   routeMode: "automatic" | "ask" | "locked";
   onboardingSeen: boolean;
+  /** MAP-3D: flat map or tilted 3D buildings. */
+  mapView: MapView;
 };
 type Trip = {
   id: string;
@@ -87,6 +90,7 @@ const defaultPrefs: Preferences = {
   history: false,
   routeMode: "locked",
   onboardingSeen: false,
+  mapView: "2d",
 };
 export function useNexora() {
   const [prefs, setPrefs] = useState(defaultPrefs);
@@ -187,7 +191,11 @@ export function useNexora() {
       .then((raw) => {
         if (raw) {
           const data = JSON.parse(raw);
-          setPrefs({ ...defaultPrefs, ...data.prefs });
+          setPrefs({
+            ...defaultPrefs,
+            ...data.prefs,
+            mapView: normaliseMapView(data.prefs?.mapView),
+          });
           setSaved(data.saved || []);
           setTrips(data.trips || []);
           setReports(data.reports || []);

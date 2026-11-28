@@ -17,6 +17,7 @@ import {
 } from "@/lib/nexora-api";
 import type { Coord, Place } from "@/shared/nexora/domain";
 import type { OfflineMapPack } from "@/hooks/use-offline-regions";
+import { resolveMapView, type MapView } from "@/shared/nexora/map-view";
 
 export type MapData = {
   controlTop: number;
@@ -33,6 +34,10 @@ export type MapData = {
   center?: Coord;
   zoom?: number;
   command?: string;
+  /** MAP-3D: guidance is running, so the 3D camera follows the position. */
+  follow?: boolean;
+  /** Direction of travel in degrees from north; the 3D camera turns with it. */
+  heading?: number;
   /** TfL disruptions to draw. Title is plain text; the map renders it as text, not HTML. */
   traffic?: {
     id: string;
@@ -50,6 +55,8 @@ export default function JourneyMap({
   onNetwork,
   offlinePack,
   preferOffline,
+  view = "2d",
+  onViewNotice,
 }: {
   data: MapData;
   onPin: (c: Coord) => void;
@@ -58,6 +65,10 @@ export default function JourneyMap({
   /** Installed offline region (native only). Used when preferred or when the online map fails. */
   offlinePack?: OfflineMapPack | null;
   preferOffline?: boolean;
+  /** MAP-3D: the view the person chose. The offline pack and devices without WebGL get 2D. */
+  view?: MapView;
+  /** Says why a chosen 3D view is showing as 2D. */
+  onViewNotice?: (message: string) => void;
 }) {
   const web = useRef<HTMLIFrameElement>(null);
   const native = useRef<WebView>(null);
@@ -68,10 +79,27 @@ export default function JourneyMap({
   const serverState = useServerState();
   const [attempt, setAttempt] = useState(0);
   const [fellBack, setFellBack] = useState(false);
-  const url = `${getApiBaseUrl()}/api/nexora/map?attempt=${attempt}`;
+  const [unavailable3d, setUnavailable3d] = useState<"webgl" | "load" | null>(
+    null,
+  );
+  // Choosing 3D again after a fallback tries it again.
+  const [seenView, setSeenView] = useState(view);
+  if (seenView !== view) {
+    setSeenView(view);
+    setUnavailable3d(null);
+  }
   const pack = Platform.OS !== "web" ? offlinePack : null;
   const useOffline = Boolean(pack && (preferOffline || fellBack));
-  const mode = useOffline ? `offline-${pack?.regionId}` : `online-${attempt}`;
+  const resolved = resolveMapView({
+    requested: view,
+    offline: useOffline,
+    unavailable3d,
+  });
+  const three = resolved.view === "3d";
+  const url = `${getApiBaseUrl()}/api/nexora/${three ? "map3d" : "map"}?attempt=${attempt}`;
+  const mode = useOffline
+    ? `offline-${pack?.regionId}`
+    : `online-${resolved.view}-${attempt}`;
   // A new map source starts fresh (adjusting state during render, not in an effect).
   const [seenMode, setSeenMode] = useState(mode);
   if (seenMode !== mode) {
@@ -80,8 +108,17 @@ export default function JourneyMap({
     setFailed(false);
     setWaiting(false);
   }
+  // The 3D page could not load: show the flat online map before anything else.
+  if (failed && three) setUnavailable3d("load");
   // The online map could not load: switch to the installed offline region instead.
-  if (failed && pack && !useOffline && !fellBack) setFellBack(true);
+  else if (failed && pack && !useOffline && !fellBack) setFellBack(true);
+  const noticeRef = useRef(onViewNotice);
+  useEffect(() => {
+    noticeRef.current = onViewNotice;
+  }, [onViewNotice]);
+  useEffect(() => {
+    if (resolved.reason) noticeRef.current?.(resolved.reason);
+  }, [resolved.reason]);
   // Without an offline pack, wait up to 60 s for a sleeping server instead of giving
   // up at 10 s; with one, keep falling back to it after 10 s as before.
   const timers = mapLoadTimers({
@@ -143,6 +180,8 @@ export default function JourneyMap({
       setFailed(false);
       setWaiting(false);
     }
+    if (message.type === "no3d")
+      setUnavailable3d(message.reason === "webgl" ? "webgl" : "load");
     if (message.type === "pin" && Array.isArray(message.coordinate))
       latest.current.onPin(message.coordinate);
     if (message.type === "place" && typeof message.id === "string")
