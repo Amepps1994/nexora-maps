@@ -13,6 +13,7 @@ import type { Server } from "node:http";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
+  ageSnapshot,
   buildTflSnapshot,
   disruptionsOnRoute,
   normaliseTflDisruption,
@@ -113,6 +114,43 @@ describe("TfL disruption normalisation", () => {
     const old = new Date(at.getTime() + TRAFFIC_POLICY.staleAfterMs + 1);
     expect(snapshotFreshness(at.toISOString(), old)).toBe("stale");
     expect(snapshotFreshness("not a date", at)).toBe("stale");
+  });
+});
+
+describe("serving an older snapshot (BUG-015)", () => {
+  const plannedRecord = {
+    ...(feed[0] as object),
+    id: "PLANNED-1",
+    startDateTime: "2026-11-27T16:45:00Z",
+    endDateTime: "2026-11-27T23:00:00Z",
+  };
+  const takenAt = new Date("2026-11-27T16:30:00Z");
+  const snap = buildTflSnapshot([...feed, plannedRecord], takenAt);
+
+  it("drops records that ended since the snapshot was taken", () => {
+    expect(snap.disruptions.map((d) => d.id)).toContain("tfl-TIMS-237786");
+    const aged = ageSnapshot(snap, new Date("2026-11-27T17:10:00Z"));
+    expect(aged).not.toBeNull();
+    expect(aged!.disruptions.map((d) => d.id)).not.toContain("tfl-TIMS-237786");
+    expect(aged!.fetchedAt).toBe(snap.fetchedAt);
+  });
+
+  it("recomputes planned once the start time has passed", () => {
+    expect(snap.disruptions.find((d) => d.id === "tfl-PLANNED-1")?.planned).toBe(true);
+    const before = ageSnapshot(snap, new Date("2026-11-27T16:40:00Z"))!;
+    expect(before.disruptions.find((d) => d.id === "tfl-PLANNED-1")?.planned).toBe(true);
+    const after = ageSnapshot(snap, new Date("2026-11-27T16:50:00Z"))!;
+    expect(after.disruptions.find((d) => d.id === "tfl-PLANNED-1")?.planned).toBe(false);
+    // Current works sort ahead of planned ones, so the started record moves up.
+    const firstPlanned = after.disruptions.findIndex((d) => d.planned);
+    expect(firstPlanned === -1 || firstPlanned > after.disruptions.findIndex((d) => d.id === "tfl-PLANNED-1")).toBe(true);
+  });
+
+  it("refuses to serve a snapshot older than the limit", () => {
+    const limit = takenAt.getTime() + TRAFFIC_POLICY.maxServeStaleMs;
+    expect(ageSnapshot(snap, new Date(limit))).not.toBeNull();
+    expect(ageSnapshot(snap, new Date(limit + 1))).toBeNull();
+    expect(ageSnapshot({ ...snap, fetchedAt: "not a date" }, takenAt)).toBeNull();
   });
 });
 
@@ -265,6 +303,66 @@ describe("traffic API", () => {
       expect(body.fetchedAt).toBeTruthy();
     } finally {
       clock = now;
+    }
+  });
+
+  it("serves a failed-refresh snapshot re-aged, then withholds it after an hour (BUG-015)", async () => {
+    const start = clock;
+    try {
+      clock = new Date("2026-11-27T16:30:00Z").getTime();
+      const first = await (await get()).json();
+      expect(first.disruptions.map((d: any) => d.id)).toContain("tfl-TIMS-237786");
+      respond = () => new Response("down", { status: 500 });
+
+      clock = new Date("2026-11-27T17:10:00Z").getTime(); // Islington ended at 17:00Z
+      const stale = await get();
+      expect(stale.status).toBe(200);
+      const body = await stale.json();
+      expect(body.status).toBe("stale");
+      expect(body.upstreamError).toBe(true);
+      expect(body.disruptions.map((d: any) => d.id)).not.toContain("tfl-TIMS-237786");
+
+      clock = new Date("2026-11-27T16:30:00Z").getTime() + TRAFFIC_POLICY.maxServeStaleMs + 60_000;
+      const old = await get();
+      expect(old.status).toBe(503);
+      const gone = await old.json();
+      expect(gone.status).toBe("unavailable");
+      expect(gone.disruptions).toBeUndefined();
+    } finally {
+      clock = start;
+    }
+  });
+
+  it("does not call TfL again for every request during an outage (PERF-004)", async () => {
+    const start = clock;
+    let calls = 0;
+    respond = () => {
+      calls += 1;
+      return new Response("down", { status: 502 });
+    };
+    try {
+      expect((await get()).status).toBe(503);
+      clock = start + 5_000;
+      const t0 = performance.now();
+      const second = await get();
+      const elapsed = performance.now() - t0;
+      expect(second.status).toBe(503);
+      expect(calls).toBe(1);
+      expect(elapsed).toBeLessThan(50);
+      const caps = await (await get("/api/nexora/traffic/capabilities")).json();
+      expect(caps.lastError).toMatchObject({ status: 502 });
+
+      // After the backoff window TfL is tried again, and a success clears the backoff.
+      clock = start + TRAFFIC_POLICY.failureBackoffMs + 1;
+      respond = () => {
+        calls += 1;
+        return new Response(JSON.stringify(feed), { status: 200 });
+      };
+      const live = await (await get()).json();
+      expect(calls).toBe(2);
+      expect(live.status).toBe("live");
+    } finally {
+      clock = start;
     }
   });
 

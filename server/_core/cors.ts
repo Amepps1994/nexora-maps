@@ -78,6 +78,18 @@ function configuredLocalExpoWebOrigins(): Set<string> {
   return origins;
 }
 
+/**
+ * Web origins allowed to drive the map document in an iframe (SEC-006): the same origins the
+ * CORS layer trusts, plus loopback origins only when they are configured exactly by env.
+ */
+export function mapParentOrigins(): string[] {
+  return [...new Set([...trustedExpoWebOrigins(), ...configuredLocalExpoWebOrigins()])];
+}
+
+/** The API is anonymous GET/POST JSON: no cookies, no Authorization, no other verbs (SEC-012). */
+export const CORS_ALLOWED_METHODS = "GET, POST, OPTIONS";
+export const CORS_ALLOWED_HEADERS = "Content-Type, Accept";
+
 export function createCorsMiddleware(
   allowedOrigins = trustedExpoWebOrigins(),
   localApiRequest = (hostname: string) => isLoopbackApiHost(hostname),
@@ -86,7 +98,7 @@ export function createCorsMiddleware(
     const origin = req.headers.origin;
     res.vary("Origin");
 
-    // Native Expo requests do not carry Origin and authenticate with a Bearer token.
+    // Native app requests do not carry Origin; CORS does not apply to them.
     if (!origin) {
       next();
       return;
@@ -102,15 +114,8 @@ export function createCorsMiddleware(
     }
 
     res.header("Access-Control-Allow-Origin", origin);
-    res.header(
-      "Access-Control-Allow-Methods",
-      "GET, POST, PUT, PATCH, DELETE, OPTIONS",
-    );
-    res.header(
-      "Access-Control-Allow-Headers",
-      "Content-Type, Accept, Authorization, X-Requested-With",
-    );
-    res.header("Access-Control-Allow-Credentials", "true");
+    res.header("Access-Control-Allow-Methods", CORS_ALLOWED_METHODS);
+    res.header("Access-Control-Allow-Headers", CORS_ALLOWED_HEADERS);
     if (req.method === "OPTIONS") {
       res.sendStatus(204);
       return;

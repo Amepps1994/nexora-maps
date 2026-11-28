@@ -21,6 +21,16 @@ export const TRAFFIC_POLICY = {
   cacheTtlMs: 120_000,
   /** After this age a snapshot is shown as stale, never as live. */
   staleAfterMs: 15 * 60_000,
+  /**
+   * After a TfL failure the last snapshot is served (re-aged, see ageSnapshot) only up to
+   * this age. Older data is withheld and the endpoint answers 503 unavailable (BUG-015).
+   */
+  maxServeStaleMs: 60 * 60_000,
+  /**
+   * After a failed upstream call, further requests skip TfL for this long and answer from the
+   * last snapshot (or 503) at once, instead of each waiting for the 12 s timeout (PERF-004).
+   */
+  failureBackoffMs: 30_000,
   /** Distance from the route line within which a disruption is listed for it. */
   routeBufferM: 60,
   /** Rough Greater London bounding box (lon/lat) used to label coverage. */
@@ -218,6 +228,14 @@ export function severityRank(
   return d.closure ? Math.min(base, 1) - 0.5 : base;
 }
 
+function compareDisruptions(a: TrafficDisruption, b: TrafficDisruption) {
+  return (
+    Number(a.planned) - Number(b.planned) ||
+    severityRank(a) - severityRank(b) ||
+    a.id.localeCompare(b.id)
+  );
+}
+
 /** Build a snapshot from the raw TfL /Road/all/Disruption array. */
 export function buildTflSnapshot(raw: unknown, now: Date): TrafficSnapshot {
   if (!Array.isArray(raw)) throw new TypeError("TfL feed is not an array");
@@ -232,12 +250,7 @@ export function buildTflSnapshot(raw: unknown, now: Date): TrafficSnapshot {
       disruptions.push(d);
     }
   }
-  disruptions.sort(
-    (a, b) =>
-      Number(a.planned) - Number(b.planned) ||
-      severityRank(a) - severityRank(b) ||
-      a.id.localeCompare(b.id),
-  );
+  disruptions.sort(compareDisruptions);
   return {
     provider: "TfL Unified API",
     coverage: "Greater London roads reported to TfL",
@@ -257,6 +270,30 @@ export function snapshotFreshness(fetchedAt: string, now: Date): Freshness {
   const t = Date.parse(fetchedAt);
   if (!Number.isFinite(t)) return "stale";
   return now.getTime() - t > TRAFFIC_POLICY.staleAfterMs ? "stale" : "fresh";
+}
+
+/**
+ * Re-evaluate an older snapshot against the current time before serving it (BUG-015):
+ * records whose end time has passed are dropped and `planned` is recomputed, so ended
+ * closures disappear and works that have started stop being shown as planned. Returns
+ * null once the snapshot is older than `maxServeStaleMs`: it must then not be served.
+ */
+export function ageSnapshot(
+  snapshot: TrafficSnapshot,
+  now: Date,
+): TrafficSnapshot | null {
+  const fetched = Date.parse(snapshot.fetchedAt);
+  const t = now.getTime();
+  if (!Number.isFinite(fetched) || t - fetched > TRAFFIC_POLICY.maxServeStaleMs)
+    return null;
+  const disruptions = snapshot.disruptions
+    .filter((d) => d.endsAt === null || Date.parse(d.endsAt) >= t)
+    .map((d) => ({
+      ...d,
+      planned: d.startsAt !== null && Date.parse(d.startsAt) > t,
+    }))
+    .sort(compareDisruptions);
+  return { ...snapshot, disruptions };
 }
 
 const EARTH_RADIUS_M = 6_371_008.8;

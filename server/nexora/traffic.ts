@@ -1,5 +1,6 @@
 import type { Express } from "express";
 import {
+  ageSnapshot,
   buildTflSnapshot,
   snapshotFreshness,
   TFL_ATTRIBUTION,
@@ -24,12 +25,15 @@ type State = {
   snapshot: TrafficSnapshot | null;
   fetchedAtMs: number;
   inflight: Promise<TrafficSnapshot> | null;
+  /** When the last upstream call failed; drives the failure backoff (PERF-004). */
+  failedAtMs: number | null;
   lastError: { at: string; status: number | null } | null;
 };
 const state: State = {
   snapshot: null,
   fetchedAtMs: 0,
   inflight: null,
+  failedAtMs: null,
   lastError: null,
 };
 
@@ -38,6 +42,7 @@ export function resetTrafficCache() {
   state.snapshot = null;
   state.fetchedAtMs = 0;
   state.inflight = null;
+  state.failedAtMs = null;
   state.lastError = null;
 }
 
@@ -83,15 +88,24 @@ export async function getTrafficSnapshot(
 ) {
   const age = now().getTime() - state.fetchedAtMs;
   if (state.snapshot && age < TRAFFIC_POLICY.cacheTtlMs) return state.snapshot;
+  // Negative cache: during an outage answer at once instead of waiting on TfL again.
+  if (
+    !state.inflight &&
+    state.failedAtMs !== null &&
+    now().getTime() - state.failedAtMs < TRAFFIC_POLICY.failureBackoffMs
+  )
+    throw new UpstreamError(state.lastError?.status ?? null);
   if (!state.inflight)
     state.inflight = fetchTfl(now)
       .then((snapshot) => {
         state.snapshot = snapshot;
         state.fetchedAtMs = Date.parse(snapshot.fetchedAt);
+        state.failedAtMs = null;
         state.lastError = null;
         return snapshot;
       })
       .catch((e) => {
+        state.failedAtMs = now().getTime();
         state.lastError = {
           at: now().toISOString(),
           status: e instanceof UpstreamError ? e.status : null,
@@ -139,12 +153,14 @@ export function registerTrafficRoutes(app: Express) {
       const snapshot = await getTrafficSnapshot();
       res.json({ status: "live", ...snapshot });
     } catch {
-      const last = state.snapshot;
+      const now = new Date(Date.now());
+      // Old data is re-aged (ended records dropped, planned recomputed), labelled with its
+      // age, never presented as live, and withheld entirely once too old (BUG-015).
+      const last = state.snapshot ? ageSnapshot(state.snapshot, now) : null;
       if (last) {
-        // Old data is labelled with its age and never presented as live.
         res.json({
           status:
-            snapshotFreshness(last.fetchedAt, new Date(Date.now())) === "fresh"
+            snapshotFreshness(last.fetchedAt, now) === "fresh"
               ? "cached"
               : "stale",
           upstreamError: true,
