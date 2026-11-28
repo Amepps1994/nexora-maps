@@ -51,6 +51,20 @@ import { requestGuidanceNotifications } from "@/lib/car/lock-screen-guidance";
 import { DEV_TOOLS } from "@/lib/dev-tools";
 import { useOfflineRegions } from "@/hooks/use-offline-regions";
 import { OFFLINE_REGIONS, formatBytes } from "@/shared/nexora/offline";
+import { PLACES_ATTRIBUTION, PLACE_CATEGORIES } from "@/shared/nexora/places";
+
+/** Feather icon for a place row, from its live category label. */
+function placeIcon(
+  category: string,
+): React.ComponentProps<typeof Icon>["name"] {
+  const c = Object.values(PLACE_CATEGORIES).find((d) => d.label === category);
+  if (c) return c.icon;
+  return /park/i.test(category)
+    ? "sun"
+    : /station/i.test(category)
+      ? "truck"
+      : "map-pin";
+}
 export type AppModel = ReturnType<typeof useNexora>;
 /** Live GPS start flow owned by NexoraApp (one-time acknowledgement). */
 export type LiveStartUi = {
@@ -459,18 +473,22 @@ export function Panels({
     body = (
       <>
         {heading(
-          n.searchFor === "origin"
-            ? "Where from?"
-            : n.searchFor === "home"
-              ? "Set your home"
-              : n.searchFor === "work"
-                ? "Set your work"
-                : n.searchFor === "stop"
-                  ? "Add a stop"
-                  : "Find your next stop",
-          n.capabilities?.search?.configured
-            ? "Search any UK address, postcode or place, or enter latitude, longitude."
-            : "Search demo landmarks or enter latitude, longitude.",
+          n.browsing
+            ? `${PLACE_CATEGORIES[n.browsing].label} nearby`
+            : n.searchFor === "origin"
+              ? "Where from?"
+              : n.searchFor === "home"
+                ? "Set your home"
+                : n.searchFor === "work"
+                  ? "Set your work"
+                  : n.searchFor === "stop"
+                    ? "Add a stop"
+                    : "Find your next stop",
+          n.browsing
+            ? "Live places around you from OpenStreetMap, closest first."
+            : n.capabilities?.search?.configured
+              ? "Search any UK address, postcode or place, or enter latitude, longitude."
+              : "Browse nearby places or enter latitude, longitude.",
         )}
         {serverNotice}
         <View
@@ -488,6 +506,10 @@ export function Panels({
             value={n.query}
             onChangeText={(q) => {
               n.setQuery(q);
+              if (n.browsing) {
+                n.setBrowsing(null);
+                n.setSearchResults(null);
+              }
               // Keep the last provider results on screen while typing; they
               // are labelled as out of date until Search runs again.
               if (!q.trim()) n.setSearchResults(null);
@@ -517,48 +539,50 @@ export function Panels({
             accessibilityLiveRegion="polite"
             style={[s.eyebrow, { color: muted }]}
           >
-            {n.busy && n.searchResults
-              ? "SEARCHING…"
-              : staleResults
-                ? `RESULTS FOR “${searchedFor.toUpperCase()}” · PRESS SEARCH TO UPDATE`
-                : n.searchResults
-                  ? "CONFIGURED PROVIDER RESULTS"
-                  : n.query
-                    ? "DEMO CATALOGUE RESULTS"
-                    : "EXPLORE LONDON · DEMO CATALOGUE"}
+            {n.busy && n.browsing
+              ? "FINDING PLACES NEARBY…"
+              : n.busy && n.searchResults
+                ? "SEARCHING…"
+                : staleResults
+                  ? `RESULTS FOR “${searchedFor.toUpperCase()}” · PRESS SEARCH TO UPDATE`
+                  : n.browsing && n.searchResults
+                    ? `${n.searchResults.length} ${PLACE_CATEGORIES[n.browsing].label.toUpperCase()} NEARBY`
+                    : n.searchResults
+                      ? "SEARCH RESULTS"
+                      : n.query
+                        ? "NEARBY MATCHES"
+                        : n.results.length
+                          ? "NEARBY HIGHLIGHTS"
+                          : ""}
           </Text>
-          <Badge text="No live business data" warning dark={dark} />
         </View>
         {error}
         {n.busy && <ActivityIndicator color={palette.teal} />}
         <View>
           {n.results.map((p) => (
             <React.Fragment key={p.id}>
-              {row(
-                p.name,
-                p.subtitle,
-                p.category === "Park"
-                  ? "sun"
-                  : p.category === "Station"
-                    ? "truck"
-                    : "map-pin",
-                () => n.choosePlace(p),
+              {row(p.name, p.subtitle, placeIcon(p.category), () =>
+                n.choosePlace(p),
               )}
             </React.Fragment>
           ))}
         </View>
-        {n.results.length === 0 && (
+        {n.results.length === 0 && !n.busy && (n.query || n.browsing) && (
           <View style={s.empty}>
             <Icon name="search" size={32} color={muted} />
             <Text style={[s.rowTitle, { color: ink }]}>
-              {n.searchResults ? "No places found" : "No demo matches"}
+              {n.searchResults || n.browsing
+                ? "No places found"
+                : "No nearby matches"}
             </Text>
             <Text style={[s.subtitle, { color: muted }]}>
-              {n.searchResults
-                ? "The search provider found nothing for that text. Check spelling, add a town or postcode, or drop a map pin."
-                : n.capabilities?.search?.configured
-                  ? "Press Search to look up any UK address, postcode or place."
-                  : "Try Tate Modern, King's Cross, a map pin, or coordinates. Arbitrary address/postcode search needs a configured provider."}
+              {n.browsing
+                ? "Nothing of this kind is mapped close by. Try another category or search by name."
+                : n.searchResults
+                  ? "The search provider found nothing for that text. Check spelling, add a town or postcode, or drop a map pin."
+                  : n.capabilities?.search?.configured
+                    ? "Press Search to look up any UK address, postcode or place."
+                    : "Enter coordinates or drop a map pin. Address search needs a configured provider."}
             </Text>
           </View>
         )}
@@ -590,9 +614,10 @@ export function Panels({
             </Text>
           </Pressable>
         )}
-        {note(
-          "Demo catalogue points are approximate landmarks, not verified entrances or accessible routes.",
-        )}
+        {(n.browsing || (!n.searchResults && n.results.length > 0)) &&
+          note(
+            `Places ${PLACES_ATTRIBUTION}. Points mark the place, not always its entrance.`,
+          )}
       </>
     );
   else if (n.panel === "place" && n.destination)
@@ -607,7 +632,7 @@ export function Panels({
             ]}
           >
             <Icon
-              name={n.destination.category === "Park" ? "sun" : "map-pin"}
+              name={placeIcon(n.destination.category)}
               size={35}
               color={dark ? "#62D6BB" : palette.teal}
             />
@@ -625,12 +650,8 @@ export function Panels({
           </View>
         </View>
         <Badge
-          text={
-            n.destination.source.includes("Demo")
-              ? "Demo catalogue · not live places"
-              : n.destination.source
-          }
-          warning
+          text={n.destination.source}
+          warning={n.destination.source.includes("Demo")}
           dark={dark}
         />
         <Text selectable style={[s.coords, { color: muted }]}>
@@ -1327,8 +1348,13 @@ export function Panels({
           "Place & address search",
           n.capabilities?.search?.configured
             ? `${n.capabilities.search.provider || "Configured geocoder"} · live UK search · press Search to submit`
-            : "London demo catalogue + coordinates · live provider not configured",
+            : "Coordinates and map pins · address search not configured",
           "search",
+        )}
+        {row(
+          "Nearby places",
+          "OpenStreetMap via Overpass · live, free, no business hours or reviews",
+          "compass",
         )}
         {row(
           "Navigation",
