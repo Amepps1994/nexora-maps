@@ -4,7 +4,9 @@ import {
   type NavigationState,
   type Route,
   type Coord,
+  type Step,
 } from "./domain";
+import { guidanceView, indexRoute, type RouteIndex } from "./guidance";
 export function sessionReducer(
   state: NavigationState,
   next: NavigationState,
@@ -17,7 +19,11 @@ export function sessionReducer(
     return navigationTransition(navigationTransition(state, "ended"), "idle");
   return navigationTransition(state, next);
 }
-/** Linear distance playback, not GPS matching, speed measurement or live guidance. */
+/**
+ * Linear distance playback, not GPS matching, speed measurement or live guidance.
+ * `step` is the upcoming manoeuvre and `distanceM` the distance to it, never the
+ * segment being driven.
+ */
 export function playbackAt(route: Route, progress: number) {
   const p = Math.max(0, Math.min(1, progress));
   const distances = route.geometry
@@ -39,14 +45,23 @@ export function playbackAt(route: Route, progress: number) {
     }
     remaining -= distances[i];
   }
-  let travelled = route.distanceM * p;
-  let step = route.steps[route.steps.length - 1];
-  for (const s of route.steps) {
-    if (travelled < s.distanceM) {
-      step = { ...s, distanceM: Math.max(0, s.distanceM - travelled) };
-      break;
-    }
-    travelled -= s.distanceM;
+  return { position, step: upcomingStepAt(route, p) };
+}
+
+/**
+ * The next manoeuvre at `progress` along the route, with `distanceM` set to the
+ * distance left to it. This is the same meaning `guidanceView` gives live GPS
+ * guidance, so the banner, step list, voice and car displays all agree in both
+ * simulation and live mode (BUG-010, BUG-011). At the end it is the arrival step.
+ */
+function upcomingStepAt(route: Route, p: number): Step {
+  const last = route.steps[route.steps.length - 1];
+  let index: RouteIndex;
+  try {
+    index = indexRoute(route);
+  } catch {
+    // Degenerate geometry: no distances to compare, so report the arrival step.
+    return last ? { ...last, distanceM: 0 } : last;
   }
-  return { position, step };
+  return guidanceView(index, index.totalM * p).step ?? last;
 }

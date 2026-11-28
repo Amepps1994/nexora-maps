@@ -145,7 +145,9 @@ describe("mock GPS drive on a real OSRM route", () => {
       expect(states[i].alongM).toBeGreaterThanOrEqual(states[i - 1].alongM);
   });
   it("speaks departure, staged turn warnings and arrival in order", () => {
-    expect(prompts[0]).toBe("Head left onto Euston Road");
+    // docs/live-route-sample.json was saved before BUG-012, so its depart text is
+    // the old wording; the first prompt is always the route's own depart text.
+    expect(prompts[0]).toBe(liveRoute.steps[0].instruction);
     const southwark = prompts.filter((p) => p.includes("Southwark Street"));
     expect(southwark[0]).toMatch(/^In (a quarter of a mile|half a mile|\d+ yards), turn left onto Southwark Street$/);
     expect(southwark.at(-1)).toBe("Turn left onto Southwark Street");
@@ -274,6 +276,11 @@ describe("multi-stop route", () => {
     const { state, prompts } = drive(index, mockTrace(index, { speed: 8, noiseM: 5, accuracyM: 8 }));
     expect(state.status).toBe("arrived");
     expect(prompts.some((p) => /Arrive at stop 1/.test(p))).toBe(true);
+  });
+  it("never says Head left/right when departing (BUG-012)", () => {
+    const { prompts } = drive(index, mockTrace(index, { speed: 8, noiseM: 5, accuracyM: 8 }));
+    expect(prompts[0]).toMatch(/^Head (north|north-east|east|south-east|south|south-west|west|north-west)\b/);
+    expect(prompts.some((p) => /^Head (left|right|slight|sharp)/.test(p))).toBe(false);
   });
 });
 
@@ -434,4 +441,6 @@ describe("U-turns and bends on 'continue' are spoken (BUG-004)", () => {
   it("keeps a straight road-name change silent", () =>
     expect(prompts.some((p) => /Continue onto Goods Way/i.test(p))).toBe(false));
   it("still arrives", () => expect(state.status).toBe("arrived"));
+  it("speaks the departure as a compass direction, not the depart modifier (BUG-012)", () =>
+    expect(prompts[0]).toBe("Head east on Pancras Road"));
 });

@@ -1,5 +1,6 @@
 import { osrmSchema } from "../../shared/nexora/provider";
-import type { Route } from "../../shared/nexora/domain";
+import { haversineM, type Coord, type Route } from "../../shared/nexora/domain";
+import { compassWord } from "../../shared/nexora/maneuver";
 
 type Mode = "driving" | "walking" | "cycling";
 
@@ -42,8 +43,15 @@ export function instruction(step: any, legIndex = 0, legCount = 1): string {
   const turnPhrase = (d: string) =>
     d.startsWith("slight") ? `Keep ${side(d)}` : `Turn ${d}`;
 
-  if (type === "depart")
-    return `Head ${dir && dir !== "uturn" ? dir : "straight"}${onto}`;
+  if (type === "depart") {
+    // OSRM's depart modifier is the side of the road you start on, not a turn, so
+    // it is never read out ("Head left onto …" was wrong, BUG-012). The compass
+    // direction comes from `bearing_after`.
+    const bearing = m.bearing_after;
+    if (typeof bearing === "number" && Number.isFinite(bearing))
+      return `Head ${compassWord(bearing)}${roadName ? ` on ${roadName}` : ""}`;
+    return roadName ? `Head onto ${roadName}` : "Head off";
+  }
   if (type === "arrive")
     return legIndex < legCount - 1
       ? `Arrive at stop ${legIndex + 1}`
@@ -95,6 +103,43 @@ export function instruction(step: any, legIndex = 0, legCount = 1): string {
  * failure. Intermediate-stop arrivals are labelled; the zero-length depart step
  * that OSRM repeats at the start of each later leg is dropped so playback does
  * not announce "Head …" twice in the same place. */
+/** Initial great-circle bearing a → b in degrees, 0 = north, clockwise. */
+function bearingDeg(a: Coord, b: Coord): number {
+  const rad = Math.PI / 180;
+  const [lon1, lat1] = [a[0] * rad, a[1] * rad];
+  const [lon2, lat2] = [b[0] * rad, b[1] * rad];
+  const y = Math.sin(lon2 - lon1) * Math.cos(lat2);
+  const x =
+    Math.cos(lat1) * Math.sin(lat2) -
+    Math.sin(lat1) * Math.cos(lat2) * Math.cos(lon2 - lon1);
+  return ((Math.atan2(y, x) / rad) % 360 + 360) % 360;
+}
+
+/** Bearing leaving `at` along the route line, for depart steps without `bearing_after`. */
+function bearingAlong(line: Coord[], at: Coord): number | undefined {
+  let nearest = 0;
+  for (let i = 1; i < line.length; i++)
+    if (haversineM(line[i], at) < haversineM(line[nearest], at)) nearest = i;
+  for (let i = nearest + 1; i < line.length; i++)
+    if (haversineM(line[nearest], line[i]) >= 3)
+      return bearingDeg(line[nearest], line[i]);
+  return undefined;
+}
+
+/** `maneuver.bearing_after` from the raw response (the schema does not keep it). */
+function rawBearingAfter(
+  raw: unknown,
+  route: number,
+  leg: number,
+  step: number,
+): number | undefined {
+  const b = (raw as any)?.routes?.[route]?.legs?.[leg]?.steps?.[step]?.maneuver
+    ?.bearing_after;
+  return typeof b === "number" && Number.isFinite(b) && b >= 0 && b <= 360
+    ? b
+    : undefined;
+}
+
 export function mapOsrmRoutes(
   raw: unknown,
   mode: Mode,
@@ -106,6 +151,15 @@ export function mapOsrmRoutes(
     const legCount = r.legs.length;
     const steps = r.legs.flatMap((leg, legIndex) =>
       leg.steps
+        .map((s, stepIndex) => {
+          if (s.maneuver.type !== "depart") return s;
+          const bearing =
+            rawBearingAfter(raw, i, legIndex, stepIndex) ??
+            bearingAlong(r.geometry.coordinates, s.maneuver.location);
+          return bearing === undefined
+            ? s
+            : { ...s, maneuver: { ...s.maneuver, bearing_after: bearing } };
+        })
         .filter(
           (s, stepIndex) =>
             !(
