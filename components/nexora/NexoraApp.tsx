@@ -32,7 +32,7 @@ import { maneuverIcon } from "@/shared/nexora/maneuver";
 import { Panels, type AppModel } from "./Panels";
 import { useNexora } from "@/hooks/use-nexora";
 import { useTraffic } from "@/hooks/use-traffic";
-import { DEMO_PLACES } from "@/shared/nexora/fixtures";
+import { CHIP_CATEGORIES, PLACE_CATEGORIES } from "@/shared/nexora/places";
 import { distanceLabel, durationLabel } from "@/shared/nexora/domain";
 import { StepList } from "./StepList";
 import { liveAckRequired, saveLiveAck } from "./live-ack";
@@ -77,12 +77,17 @@ export default function NexoraApp() {
   const navHeight = 70 + (desktop ? 0 : insets.bottom);
   const left = desktop ? 28 : 16;
   const sheetWidth = desktop ? 424 : width - 24;
+  // Live places on the map: the category being browsed, else nearby highlights.
+  const mapPlaces = useMemo(
+    () => (n.browsing && n.searchResults) || n.highlights || [],
+    [n.browsing, n.searchResults, n.highlights],
+  );
   const mapData = useMemo(
     () => ({
       dark,
       controlTop: desktop ? 76 : 205,
       reducedMotion: n.prefs.reducedMotion,
-      places: DEMO_PLACES,
+      places: mapPlaces,
       destination: n.destination?.coordinate,
       stops: n.stops.map((stop) => stop.coordinate),
       route: n.route?.geometry,
@@ -112,6 +117,7 @@ export default function NexoraApp() {
       n.center,
       n.mapCommand,
       traffic.disruptions,
+      mapPlaces,
     ],
   );
   const navNames = [
@@ -272,7 +278,7 @@ export default function NexoraApp() {
           data={mapData}
           onPin={n.pin}
           onPlace={(id) => {
-            const p = DEMO_PLACES.find((p) => p.id === id);
+            const p = mapPlaces.find((p) => p.id === id);
             if (p && !n.moving) {
               n.setSearchFor("destination");
               n.choosePlace(p, "destination");
@@ -319,36 +325,36 @@ export default function NexoraApp() {
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={s.chips}
             >
-              {(
-                [
-                  ["Culture", "aperture"],
-                  ["Parks", "sun"],
-                  ["Stations", "truck"],
-                ] as const
-              ).map(([label, icon]) => (
-                <Pressable
-                  key={label}
-                  accessibilityRole="button"
-                  onPress={() => {
-                    n.openSearch();
-                    n.setQuery(
-                      label === "Parks"
-                        ? "Park"
-                        : label === "Stations"
-                          ? "Station"
-                          : label,
-                    );
-                  }}
-                  style={[s.chip, { backgroundColor: surface }]}
-                >
-                  <Icon
-                    name={icon}
-                    size={14}
-                    color={dark ? "#62D6BB" : palette.teal}
-                  />
-                  <Text style={[s.chipText, { color: ink }]}>{label}</Text>
-                </Pressable>
-              ))}
+              {CHIP_CATEGORIES.map((id) => {
+                const c = PLACE_CATEGORIES[id];
+                const on = n.browsing === id && n.panel === "search";
+                return (
+                  <Pressable
+                    key={id}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${c.label} nearby`}
+                    accessibilityState={{ selected: on }}
+                    onPress={() => n.browse(id)}
+                    style={[
+                      s.chip,
+                      {
+                        backgroundColor: on
+                          ? dark
+                            ? "#1B3E3C"
+                            : "#E4F3EC"
+                          : surface,
+                      },
+                    ]}
+                  >
+                    <Icon
+                      name={c.icon}
+                      size={14}
+                      color={dark ? "#62D6BB" : palette.teal}
+                    />
+                    <Text style={[s.chipText, { color: ink }]}>{c.label}</Text>
+                  </Pressable>
+                );
+              })}
             </ScrollView>
             {server && (
               <View
@@ -831,7 +837,11 @@ export default function NexoraApp() {
             <HomeCard
               n={n}
               open={sheetOpen || desktop}
-              onToggle={desktop ? undefined : () => setSheetOpen((o) => !o)}
+              onToggle={
+                desktop || !n.highlights?.length
+                  ? undefined
+                  : () => setSheetOpen((o) => !o)
+              }
             />
           ) : (
             <SecondaryPage n={n} />
@@ -1010,33 +1020,36 @@ export default function NexoraApp() {
           <Text style={s.toastText}>{n.toast}</Text>
         </View>
       )}
-      <View
-        pointerEvents="none"
-        style={[
-          s.footnote,
-          {
-            bottom:
-              desktop || n.active || n.state === "arrived" ? 8 : navHeight + 4,
-            left: desktop ? 28 : 16,
-          },
-        ]}
-      >
-        <Text
+      {/* Only during guidance: the idle map needs no footer. */}
+      {n.active && (
+        <View
+          pointerEvents="none"
           style={[
-            s.footnoteText,
+            s.footnote,
             {
-              color: dark ? "#DFEAE4" : "#455B50",
-              backgroundColor: dark ? "#0B1220B0" : "#FFFFFFD9",
+              bottom:
+                desktop || n.active || n.state === "arrived"
+                  ? 8
+                  : navHeight + 4,
+              left: desktop ? 28 : 16,
             },
           ]}
         >
-          {n.active
-            ? n.guidanceSource === "live"
+          <Text
+            style={[
+              s.footnoteText,
+              {
+                color: dark ? "#DFEAE4" : "#455B50",
+                backgroundColor: dark ? "#0B1220B0" : "#FFFFFFD9",
+              },
+            ]}
+          >
+            {n.guidanceSource === "live"
               ? "Live GPS · keep the app open"
-              : "Simulation only · not for road use"
-            : "Online map · demo places · test routes"}
-        </Text>
-      </View>
+              : "Simulation only · not for road use"}
+          </Text>
+        </View>
+      )}
       <View
         pointerEvents="none"
         style={{
@@ -1120,7 +1133,7 @@ function HomeCard({
         showsVerticalScrollIndicator={false}
         contentContainerStyle={[
           s.homeContent,
-          !onToggle && { paddingTop: space.xl },
+          !onToggle && { paddingTop: space.lg },
         ]}
       >
         <View style={s.shortcutRow}>
@@ -1161,13 +1174,14 @@ function HomeCard({
             </Pressable>
           ))}
         </View>
-        {open && (
+        {open && Boolean(n.highlights?.length) && (
           <>
-            <Text style={[s.sectionLabel, { color: muted }]}>Suggestions</Text>
-            {[DEMO_PLACES[1], DEMO_PLACES[2]].map((p, i) => (
+            <Text style={[s.sectionLabel, { color: muted }]}>Nearby</Text>
+            {(n.highlights ?? []).slice(0, 3).map((p) => (
               <Pressable
                 key={p.id}
                 accessibilityRole="button"
+                accessibilityLabel={`${p.name}, ${p.subtitle}`}
                 onPress={() => {
                   n.setSearchFor("destination");
                   n.choosePlace(p, "destination");
@@ -1184,15 +1198,18 @@ function HomeCard({
                   ]}
                 >
                   <Icon
-                    name={i === 0 ? "aperture" : "sun"}
+                    name={/park|garden/i.test(p.subtitle) ? "sun" : "star"}
                     size={18}
                     color={accent}
                   />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={[s.inspireTitle, { color: ink }]}>{p.name}</Text>
-                  <Text style={[s.inspireSub, { color: muted }]}>
-                    {i === 0 ? "Gallery by the Thames" : "Park in east London"}
+                  <Text
+                    style={[s.inspireSub, { color: muted }]}
+                    numberOfLines={1}
+                  >
+                    {p.subtitle}
                   </Text>
                 </View>
                 <Icon name="chevron-right" size={18} color={muted} />

@@ -32,6 +32,7 @@ import {
   useSpokenGuidance,
 } from "@/hooks/use-live-guidance";
 import { DEMO_PLACES, syntheticItinerary } from "@/shared/nexora/fixtures";
+import { PLACE_CATEGORIES, type PlaceCategory } from "@/shared/nexora/places";
 import {
   addStop,
   checkItinerary,
@@ -174,6 +175,12 @@ export function useNexora() {
   rerouteRef.current ??= createRerouteController<Place, Route>(api);
   const reroute = rerouteRef.current;
   const tripRecorded = useRef(false);
+  // Live nearby places (OpenStreetMap via the server's Overpass route).
+  const [browsing, setBrowsing] = useState<PlaceCategory | null>(null);
+  const [highlights, setHighlights] = useState<Place[] | null>(null);
+  const nearbyRef = useRef<ReturnType<typeof createLatestOnly> | null>(null);
+  nearbyRef.current ??= createLatestOnly();
+  const nearbyReq = nearbyRef.current;
   const hydratedRef = useRef(false);
   useEffect(() => {
     AsyncStorage.getItem(STORE)
@@ -333,10 +340,13 @@ export function useNexora() {
   const step = isLive ? live.step : playback?.step;
   const localResults = useMemo(() => {
     const q = query.trim().toLowerCase();
-    const result = DEMO_PLACES.filter(
-      (p) =>
-        !q || `${p.name} ${p.subtitle} ${p.category}`.toLowerCase().includes(q),
-    );
+    // Instant matches among live places already loaded; Search asks the geocoder.
+    const known = highlights ?? [];
+    const result = q
+      ? known.filter((p) =>
+          `${p.name} ${p.subtitle} ${p.category}`.toLowerCase().includes(q),
+        )
+      : known;
     const match = query.match(
       /^\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*$/,
     );
@@ -355,7 +365,7 @@ export function useNexora() {
         ];
     }
     return result;
-  }, [query]);
+  }, [query, highlights]);
   const results = searchResults || localResults;
   function openSearch(forField: typeof searchFor = "destination") {
     if (active) return;
@@ -366,9 +376,59 @@ export function useNexora() {
     setSearchFor(forField);
     setQuery("");
     setSearchResults(null);
+    setBrowsing(null);
+    nearbyReq.cancel();
     setError("");
     setPanel("search");
   }
+  /** Where "nearby" means: the device fix, else the map centre, else the trip origin. */
+  const nearbyAnchor: Coord = gps ?? center ?? origin.coordinate;
+  const fetchNearby = (
+    category: PlaceCategory,
+    at: Coord,
+    signal: AbortSignal,
+  ) =>
+    api
+      .json<{ places: Place[] }>(
+        `/api/nexora/places?category=${category}&lat=${at[1].toFixed(5)}&lon=${at[0].toFixed(5)}`,
+        { signal, awakeTimeoutMs: SEARCH_TIMEOUT_MS + 4000 },
+      )
+      .then((d) => (Array.isArray(d?.places) ? d.places : []));
+  /** Open the search sheet on live places of one category around the user. */
+  async function browse(category: PlaceCategory) {
+    if (active) return;
+    openSearch("destination");
+    setBrowsing(category);
+    setBusy(true);
+    await nearbyReq.run(
+      (signal) => fetchNearby(category, nearbyAnchor, signal),
+      {
+        onResult: (places) => setSearchResults(places),
+        onError: (e) =>
+          setError(
+            friendlyApiError(
+              e,
+              api.getState(),
+              `${PLACE_CATEGORIES[category].label} nearby are unavailable. Try again.`,
+            ),
+          ),
+        onSettled: () => setBusy(false),
+      },
+    );
+  }
+  // Home-screen highlights: refreshed when the anchor moves to another ~1 km cell.
+  const highlightCell = `${nearbyAnchor[0].toFixed(2)},${nearbyAnchor[1].toFixed(2)}`;
+  useEffect(() => {
+    if (!online || active) return;
+    const controller = new AbortController();
+    fetchNearby("highlights", nearbyAnchor, controller.signal)
+      .then((places) => setHighlights(places.slice(0, 8)))
+      .catch(() => {
+        /* the home list stays hidden; chips and search still work */
+      });
+    return () => controller.abort();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [highlightCell, online, active]);
   function choosePlace(place: Place, field = searchFor) {
     if (active) return;
     requestGeneration.current += 1;
@@ -430,6 +490,8 @@ export function useNexora() {
   }, [query]);
   async function liveSearch() {
     if (moving) return;
+    nearbyReq.cancel();
+    setBrowsing(null);
     setBusy(true);
     setError("");
     await search.run(
@@ -1022,6 +1084,10 @@ export function useNexora() {
     position,
     step,
     openSearch,
+    browse,
+    browsing,
+    setBrowsing,
+    highlights,
     choosePlace,
     pin,
     liveSearch,

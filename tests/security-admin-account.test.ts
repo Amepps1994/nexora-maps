@@ -144,6 +144,7 @@ describe("SEC-ADMIN: deny-by-default route inventory", () => {
         "GET /api/nexora/map",
         "GET /api/nexora/offline/regions",
         "GET /api/nexora/offline/regions/:id/:file",
+        "GET /api/nexora/places",
         "GET /api/nexora/search",
         "GET /api/nexora/traffic",
         "GET /api/nexora/traffic/capabilities",
