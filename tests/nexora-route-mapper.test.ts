@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { instruction, mapOsrmRoutes } from "../server/nexora/route-mapper";
 import {
   directionFromText,
@@ -531,5 +533,110 @@ describe("direction helpers", () => {
     expect(
       stepDirection({ instruction: "Turn left", modifier: "sideways" }),
     ).toBe("left");
+  });
+});
+
+/** Map a one-step depart route through the real mapper. */
+function mappedDepart(
+  maneuver: Record<string, unknown>,
+  name = "Euston Road",
+  line: [number, number][] = [at, [-0.119, 51.501]],
+): Step {
+  return mapOsrmRoutes(
+    {
+      code: "Ok",
+      routes: [
+        {
+          distance: 100,
+          duration: 10,
+          geometry: { coordinates: line },
+          legs: [
+            {
+              steps: [
+                {
+                  distance: 100,
+                  duration: 10,
+                  name,
+                  maneuver: { location: at, type: "depart", ...maneuver },
+                },
+                {
+                  distance: 0,
+                  duration: 0,
+                  name: "",
+                  maneuver: { location: line[line.length - 1], type: "arrive" },
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    },
+    "driving",
+  )[0].steps[0];
+}
+
+describe("depart steps use a compass direction (BUG-012)", () => {
+  it.each([
+    [0, "north"],
+    [22, "north"],
+    [45, "north-east"],
+    [90, "east"],
+    [135, "south-east"],
+    [180, "south"],
+    [225, "south-west"],
+    [270, "west"],
+    [315, "north-west"],
+    [338, "north"],
+    [359, "north"],
+    [360, "north"],
+  ])("bearing %i reads Head %s", (bearing, word) => {
+    const s = mappedDepart({ bearing_after: bearing, modifier: "right" });
+    expect(s.instruction).toBe(`Head ${word} on Euston Road`);
+  });
+
+  it.each(["left", "right", "slight left", "sharp right", "uturn", "straight"])(
+    "ignores the depart modifier %s",
+    (modifier) => {
+      const s = mappedDepart({ bearing_after: 270, modifier });
+      expect(s.instruction).toBe("Head west on Euston Road");
+      expect(s.instruction).not.toMatch(/^Head (left|right|slight|sharp|straight)/);
+      expect(maneuverIcon(s)).toBe("navigation");
+      expect(stepDirection(s)).toBe("straight");
+      const car = toCarManeuver(s);
+      expect(car.kind).toBe("depart");
+      expect(car.direction).toBe("straight");
+      expect(car.roadName).toBe("Euston Road");
+    },
+  );
+
+  it("reads without a road name", () =>
+    expect(mappedDepart({ bearing_after: 90 }, "").instruction).toBe("Head east"));
+
+  it("works out the bearing from the route line when OSRM leaves it out", () => {
+    // Line leaves `at` due west.
+    const s = mappedDepart({ modifier: "left" }, "Euston Road", [at, [-0.121, 51.5]]);
+    expect(s.instruction).toBe("Head west on Euston Road");
+  });
+
+  it("does not let the road name pick the arrow", () => {
+    const s = mappedDepart({ bearing_after: 0, modifier: "left" }, "Left Bank Road");
+    expect(s.instruction).toBe("Head north on Left Bank Road");
+    expect(directionFromText(s.instruction)).toBe("straight");
+    expect(toCarManeuver(s).roadName).toBe("Left Bank Road");
+  });
+
+  it("shows the navigation icon for older saved depart steps", () =>
+    expect(
+      maneuverIcon({ instruction: "Head left onto Euston Road", type: "depart", modifier: "left" }),
+    ).toBe("navigation"));
+
+  it("never reads Head left/right for any mapped route in the fixtures", () => {
+    for (const s of mapOsrmRoutes(
+      JSON.parse(
+        readFileSync(join(__dirname, "fixtures/osrm-car-multistop.json"), "utf8"),
+      ).body,
+      "driving",
+    )[0].steps)
+      expect(s.instruction).not.toMatch(/^Head (left|right|slight|sharp)/);
   });
 });

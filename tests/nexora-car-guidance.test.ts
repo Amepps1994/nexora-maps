@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import type { Route, Step } from "../shared/nexora/domain";
 import { playbackAt } from "../shared/nexora/session";
+import { guidanceView, indexRoute } from "../shared/nexora/guidance";
 import { syntheticRoute, DEMO_PLACES } from "../shared/nexora/fixtures";
 import {
   ROAD_USE_LABEL,
@@ -30,35 +31,45 @@ const step = (over: Partial<Step>): Step => ({
   ...over,
 });
 
-// Shaped like server/nexora/route-mapper.ts output for a 3-step OSRM car route.
+// Shaped like server/nexora/route-mapper.ts output for an OSRM car route:
+// depart 400 m south, left at 400 m (400 m east), right at 800 m (200 m south),
+// arrive at 1000 m. The geometry matches the step distances to within 0.1 m.
 const route: Route = {
   id: "osrm-driving-0",
   geometry: [
     [-0.124, 51.53],
-    [-0.124, 51.525],
-    [-0.12, 51.525],
-    [-0.12, 51.52],
+    [-0.124, 51.526403],
+    [-0.118218, 51.526403],
+    [-0.118218, 51.524604],
   ],
   distanceM: 1000,
   durationS: 200,
   steps: [
     step({
-      instruction: "Head south onto York Way",
+      instruction: "Head south on York Way",
       distanceM: 400,
       type: "depart",
       coordinate: [-0.124, 51.53],
     }),
     step({
       instruction: "Turn left onto Euston Road",
-      distanceM: 600,
+      distanceM: 400,
       type: "turn",
-      coordinate: [-0.124, 51.525],
+      modifier: "left",
+      coordinate: [-0.124, 51.526403],
+    }),
+    step({
+      instruction: "Turn right onto Gower Street",
+      distanceM: 200,
+      type: "turn",
+      modifier: "right",
+      coordinate: [-0.118218, 51.526403],
     }),
     step({
       instruction: "Arrive at your destination",
       distanceM: 0,
       type: "arrive",
-      coordinate: [-0.12, 51.52],
+      coordinate: [-0.118218, 51.524604],
     }),
   ],
   source: "OSRM",
@@ -154,26 +165,70 @@ describe("buildCarGuidance", () => {
     });
   });
 
-  it("shows the next manoeuvre, not the segment being driven", () => {
-    const { step: current } = playbackAt(route, 0.1); // 100 m into the 400 m depart segment
+  it("shows the next manoeuvre in live guidance, not the turn after it (BUG-010)", () => {
+    // Live guidance passes guidanceView's step: the upcoming manoeuvre, 100 m in.
+    const { step: upcoming } = guidanceView(indexRoute(route), 100);
     const s = buildCarGuidance({
       ...base,
       state: "navigating",
       route,
-      step: current,
+      step: upcoming,
       progress: 0.1,
       source: "live",
     });
     expect(s.active).toBe(true);
     expect(s.phase).toBe("guiding");
     expect(s.next?.instruction).toBe("Turn left onto Euston Road");
+    expect(s.next?.direction).toBe("left");
     expect(s.distanceToNextM).toBe(300);
     expect(s.remainingDistanceM).toBe(900);
     expect(s.remainingDurationS).toBe(180);
     expect(s.etaMs).toBe(1_000_000 + 180_000);
     expect(s.simulated).toBe(false);
     expect(s.statusLine).toBe(ROAD_USE_LABEL);
-    expect(s.destinationCoordinate).toEqual([-0.12, 51.52]);
+    expect(s.destinationCoordinate).toEqual([-0.118218, 51.524604]);
+  });
+
+  it("gives simulation and live the same next manoeuvre and distance", () => {
+    const index = indexRoute(route);
+    for (const p of [0, 0.1, 0.39, 0.41, 0.5, 0.79, 0.81, 0.95, 1]) {
+      const build = (step: Step | undefined, source: "live" | "simulation") =>
+        buildCarGuidance({
+          ...base,
+          state: p === 1 ? "arrived" : "navigating",
+          route,
+          step,
+          progress: p,
+          source,
+        });
+      const live = build(guidanceView(index, p * index.totalM).step, "live");
+      const sim = build(playbackAt(route, p).step, "simulation");
+      expect(sim.next?.instruction, `at ${p}`).toBe(live.next?.instruction);
+      expect(sim.distanceToNextM, `at ${p}`).toBe(live.distanceToNextM);
+    }
+  });
+
+  it("names each upcoming turn as the drive passes it", () => {
+    const at = (p: number) =>
+      buildCarGuidance({
+        ...base,
+        state: "navigating",
+        route,
+        step: playbackAt(route, p).step,
+        progress: p,
+      });
+    expect(at(0).next?.instruction).toBe("Turn left onto Euston Road");
+    expect(at(0).distanceToNextM).toBe(400);
+    expect(at(0.5).next?.instruction).toBe("Turn right onto Gower Street");
+    expect(at(0.5).distanceToNextM).toBe(300);
+    expect(at(0.9).next?.kind).toBe("arrive");
+    expect(at(0.9).distanceToNextM).toBe(100);
+  });
+
+  it("falls back to the upcoming step when no step is passed", () => {
+    const s = buildCarGuidance({ ...base, state: "navigating", route, progress: 0.1 });
+    expect(s.next?.instruction).toBe("Turn left onto Euston Road");
+    expect(s.distanceToNextM).toBe(300);
   });
 
   it("labels simulation and demo routes as simulated", () => {

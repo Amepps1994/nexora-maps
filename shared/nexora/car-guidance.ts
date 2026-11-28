@@ -12,6 +12,7 @@ import {
   stepDirection,
   type TurnDirection,
 } from "./maneuver";
+import { playbackAt } from "./session";
 
 export type GuidanceSource = "simulation" | "live";
 
@@ -81,6 +82,7 @@ export interface CarGuidanceSnapshot {
 export interface CarGuidanceInput {
   state: NavigationState;
   route?: Route | null;
+  /** The next manoeuvre, with `distanceM` = distance to it (as `guidanceView` and `playbackAt` return). */
   step?: Step | null;
   progress: number;
   paused: boolean;
@@ -119,7 +121,9 @@ export function toCarManeuver(step: Step): CarManeuver {
     coordinate: [step.coordinate[0], step.coordinate[1]] as [number, number],
     ...(roadName ? { roadName } : {}),
   };
-  if (type === "depart") return { ...base, kind: "depart", direction };
+  // OSRM's depart modifier is the side of the road you start on, not a turn (BUG-012).
+  if (type === "depart")
+    return { ...base, kind: "depart", direction: "straight" };
   if (type === "arrive" || type === "synthetic-arrive")
     return { ...base, kind: "arrive", direction };
   if (type.includes("waypoint") || type === "synthetic-stop")
@@ -154,15 +158,6 @@ export function toCarManeuver(step: Step): CarManeuver {
   )
     return { ...base, kind: "keep", direction };
   return { ...base, kind: "turn", direction };
-}
-
-function sameStep(a: Step, b: Step): boolean {
-  return (
-    a.instruction === b.instruction &&
-    a.type === b.type &&
-    a.coordinate[0] === b.coordinate[0] &&
-    a.coordinate[1] === b.coordinate[1]
-  );
 }
 
 function phaseFor(state: NavigationState, paused: boolean): CarGuidancePhase {
@@ -221,16 +216,12 @@ export function buildCarGuidance(input: CarGuidanceInput): CarGuidanceSnapshot {
   let next: CarManeuver | null = null;
   let distanceToNextM: number | null = null;
   if (route && route.steps.length) {
-    const current = input.step ?? route.steps[0];
-    const index = route.steps.findIndex((s) => sameStep(s, current));
-    const nextStep =
-      index >= 0 && index + 1 < route.steps.length
-        ? route.steps[index + 1]
-        : index >= 0
-          ? route.steps[index]
-          : current;
-    next = toCarManeuver(nextStep);
-    distanceToNextM = Math.max(0, Math.round(current.distanceM));
+    // `input.step` is already the next manoeuvre with the distance to it, from
+    // `guidanceView` (live) or `playbackAt` (simulation). No look-ahead here: an
+    // extra `+ 1` showed the turn after next (BUG-010).
+    const upcoming = input.step ?? playbackAt(route, p).step;
+    next = toCarManeuver(upcoming);
+    distanceToNextM = Math.max(0, Math.round(upcoming.distanceM));
     if (phase === "arrived") {
       next = toCarManeuver(route.steps[route.steps.length - 1]);
       next.kind = "arrive";

@@ -56,6 +56,30 @@ const TEXT_DIRECTIONS: readonly [RegExp, TurnDirection][] = [
 
 const ROAD_CLAUSE = /\b(?:onto|to stay on)\s+(.+)$/i;
 
+/** 8-point compass words used for depart instructions, clockwise from north. */
+export const COMPASS_WORDS = [
+  "north",
+  "north-east",
+  "east",
+  "south-east",
+  "south",
+  "south-west",
+  "west",
+  "north-west",
+] as const;
+
+/** "Head west on Euston Road": the road clause of a depart instruction (BUG-012). */
+const DEPART_ROAD_CLAUSE = new RegExp(
+  `^(Head (?:${COMPASS_WORDS.join("|")}))\\s+on\\s+(.+)$`,
+  "i",
+);
+
+/** Compass bearing in degrees (any value) → nearest of the 8 compass words. */
+export function compassWord(bearingDeg: number): (typeof COMPASS_WORDS)[number] {
+  const b = ((bearingDeg % 360) + 360) % 360;
+  return COMPASS_WORDS[Math.round(b / 45) % 8];
+}
+
 /** OSRM modifier string → direction; undefined when absent or unknown. */
 export function directionFromModifier(
   modifier: string | undefined,
@@ -66,20 +90,27 @@ export function directionFromModifier(
 
 /** Direction from instruction text, ignoring the road-name clause. */
 export function directionFromText(text: string): TurnDirection {
-  const head = (text || "").replace(ROAD_CLAUSE, "");
+  const head = (text || "").replace(DEPART_ROAD_CLAUSE, "$1").replace(ROAD_CLAUSE, "");
   for (const [re, dir] of TEXT_DIRECTIONS) if (re.test(head)) return dir;
   return "straight";
 }
 
 /** Road name from "… onto <road>" or "… to stay on <road>". */
 export function roadNameFromText(text: string): string | undefined {
+  const depart = (text || "").match(DEPART_ROAD_CLAUSE);
+  if (depart) return depart[2].trim();
   const m = (text || "").match(ROAD_CLAUSE);
   return m ? m[1].trim() : undefined;
 }
 
+/**
+ * Turn direction of a step. A depart step is always "straight": OSRM's depart
+ * modifier says which side of the road you start on, not a turn (BUG-012).
+ */
 export function stepDirection(
-  step: Pick<Step, "modifier" | "instruction">,
+  step: Pick<Step, "modifier" | "instruction"> & { type?: string },
 ): TurnDirection {
+  if ((step.type || "").toLowerCase() === "depart") return "straight";
   return (
     directionFromModifier(step.modifier) ?? directionFromText(step.instruction)
   );
@@ -119,8 +150,8 @@ export function maneuverIcon(
   // A "roundabout turn" (mini-roundabout) is drawn as the turn itself.
   if (isRoundabout(type) && type !== "roundabout turn") return "rotate-cw";
   if (type === "ferry") return "anchor";
+  if (type === "depart") return "navigation";
   const direction = stepDirection(step);
-  if (type === "depart" && direction === "straight") return "navigation";
   switch (direction) {
     case "uturn":
       return "rotate-ccw";
