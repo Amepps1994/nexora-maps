@@ -39,24 +39,9 @@ const env = {
   androidPackage: bundleId,
 };
 
-// Expo serializes this browser-safe subset into native and web bundles. The server-only
-// MANUS_API_KEY and MANUS_JWT_SECRET must never enter this object.
+// Expo serializes this browser-safe subset into native and web bundles. Server secrets must
+// never enter this object. The Manus OAuth values were removed with the login stack (SEC-002).
 const publicRuntime = {
-  oauthPortalUrl:
-    process.env.MANUS_OAUTH_PORTAL_URL ??
-    process.env.VITE_OAUTH_PORTAL_URL ??
-    process.env.EXPO_PUBLIC_OAUTH_PORTAL_URL ??
-    "",
-  oauthServerUrl:
-    process.env.MANUS_OAUTH_API_URL ??
-    process.env.OAUTH_SERVER_URL ??
-    process.env.EXPO_PUBLIC_OAUTH_SERVER_URL ??
-    "",
-  appId:
-    process.env.MANUS_PROJECT_ID ??
-    process.env.VITE_APP_ID ??
-    process.env.EXPO_PUBLIC_APP_ID ??
-    "",
   // Native builds need an absolute API URL. Every eas.json build profile sets EXPO_PUBLIC_API_BASE_URL
   // explicitly (OPS-003); this fallback to the Render-hosted backend (render.yaml) only covers local runs.
   apiBaseUrl: process.env.EXPO_PUBLIC_API_BASE_URL || "https://nexora-api-cfoh.onrender.com",
@@ -74,7 +59,9 @@ const config: ExpoConfig = {
   name: env.appName,
   slug: env.appSlug,
   owner: "epps1994",
-  version: "1.0.0",
+  // Bump on every release build (docs/RELEASE.md): the live-start acknowledgement is keyed
+  // to this value (UX-003), so a new version asks again.
+  version: "1.1.0",
   extra: { ...publicRuntime, carDisplays, eas: { projectId: "97028c96-a8c6-4a91-9b16-ce0f465a5c0b" } },
   orientation: "default",
   icon: "./assets/images/icon.png",

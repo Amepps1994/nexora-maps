@@ -36,6 +36,11 @@ Profiles in `eas.json` (both build an internal-distribution APK on Node 22 and s
 | `preview` | A test APK from a branch, before merging |
 | `production-apk` | The build Andrew installs; the Android version code auto-increments on every build |
 
+**Bump the app version before every release build.** Raise `version` in `app.config.ts` (for example
+`1.1.0` to `1.2.0`) in the release PR. The live-start acknowledgement is keyed to that value (UX-003), so testers
+are asked to acknowledge again on the first live start of a new release. The Android version code still
+auto-increments by itself.
+
 Builds use the owner's EAS quota, so **each build needs Andrew's typed approval** in the project thread.
 
 Cut a build from the working copy on Andrew's PC, in PowerShell (`npx.ps1` is blocked, so use `npx.cmd`):
