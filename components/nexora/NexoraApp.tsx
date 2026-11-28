@@ -3,6 +3,7 @@ import {
   AccessibilityInfo,
   ActivityIndicator,
   BackHandler,
+  PanResponder,
   Platform,
   Pressable,
   ScrollView,
@@ -15,7 +16,18 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import JourneyMap from "./JourneyMap";
 import { useOfflineRegions } from "@/hooks/use-offline-regions";
-import { Badge, Button, Icon, IconButton, Mark, palette } from "./ui";
+import {
+  Badge,
+  Button,
+  Icon,
+  IconButton,
+  Mark,
+  floatShadow,
+  palette,
+  radius,
+  space,
+  type,
+} from "./ui";
 import { maneuverIcon } from "@/shared/nexora/maneuver";
 import { Panels, type AppModel } from "./Panels";
 import { useNexora } from "@/hooks/use-nexora";
@@ -245,6 +257,9 @@ export default function NexoraApp() {
   }, [eventText]);
 
   const [showSteps, setShowSteps] = useState(false);
+  // The home sheet opens compact (Home and Work only) so the map stays the
+  // focus; a tap or swipe on the handle shows the suggestions.
+  const [sheetOpen, setSheetOpen] = useState(false);
   const server = serverBanner(n.serverState, n.online);
   // UX-009: the map tools sit below the top area (search, chips and the
   // server banner) so the banner always has its own slot.
@@ -278,43 +293,26 @@ export default function NexoraApp() {
               { top, left, width: desktop ? 424 : width - 32 },
             ]}
           >
-            <View style={s.brandRow}>
-              <View style={[s.brand, { backgroundColor: surface }]}>
-                <Mark size={26} color={dark ? "#62D6BB" : palette.teal} />
-                <Text style={[s.brandText, { color: ink }]}>
-                  NEXORA
-                  <Text style={[s.brandMaps, { color: muted }]}> MAPS</Text>
-                </Text>
-              </View>
-              <Pressable
-                accessibilityLabel="View provider capabilities"
-                accessibilityRole="button"
-                onPress={() => n.setPanel("providers")}
-              >
-                <Badge
-                  text={n.online ? "Planning preview" : "Offline · limited"}
-                  warning={!n.online}
-                  dark={dark}
-                />
-              </Pressable>
-            </View>
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Search a destination"
               onPress={() => n.openSearch()}
               style={[s.searchBar, { backgroundColor: surface }]}
             >
-              <Icon name="search" color={muted} size={21} />
-              <Text style={[s.searchPlaceholder, { color: ink }]}>
-                Where would you like to go?
+              <Mark size={22} color={dark ? "#62D6BB" : palette.teal} />
+              <Text style={[s.searchPlaceholder, { color: muted }]}>
+                Where to?
               </Text>
-              <View
-                style={[
-                  s.searchDivider,
-                  { backgroundColor: dark ? "#304256" : "#E6ECE9" },
-                ]}
-              />
-              <Icon name="arrow-up-right" size={22} color={palette.teal} />
+              {!n.online && (
+                <Pressable
+                  accessibilityLabel="Offline. View provider capabilities"
+                  accessibilityRole="button"
+                  onPress={() => n.setPanel("providers")}
+                >
+                  <Badge text="Offline" warning dark={dark} />
+                </Pressable>
+              )}
+              <Icon name="search" color={ink} size={20} />
             </Pressable>
             <ScrollView
               horizontal
@@ -326,7 +324,6 @@ export default function NexoraApp() {
                   ["Culture", "aperture"],
                   ["Parks", "sun"],
                   ["Stations", "truck"],
-                  ["More", "grid"],
                 ] as const
               ).map(([label, icon]) => (
                 <Pressable
@@ -339,16 +336,14 @@ export default function NexoraApp() {
                         ? "Park"
                         : label === "Stations"
                           ? "Station"
-                          : label === "More"
-                            ? ""
-                            : label,
+                          : label,
                     );
                   }}
                   style={[s.chip, { backgroundColor: surface }]}
                 >
                   <Icon
                     name={icon}
-                    size={15}
+                    size={14}
                     color={dark ? "#62D6BB" : palette.teal}
                   />
                   <Text style={[s.chipText, { color: ink }]}>{label}</Text>
@@ -828,11 +823,19 @@ export default function NexoraApp() {
               bottom: navHeight + 24,
               width: sheetWidth,
               backgroundColor: surface,
-              maxHeight: landscape ? "45%" : Math.min(480, height * 0.43),
+              maxHeight: landscape ? "45%" : Math.min(460, height * 0.42),
             },
           ]}
         >
-          {n.tab === "Home" ? <HomeCard n={n} /> : <SecondaryPage n={n} />}
+          {n.tab === "Home" ? (
+            <HomeCard
+              n={n}
+              open={sheetOpen || desktop}
+              onToggle={desktop ? undefined : () => setSheetOpen((o) => !o)}
+            />
+          ) : (
+            <SecondaryPage n={n} />
+          )}
         </View>
       )}
       {n.panel && (
@@ -869,7 +872,12 @@ export default function NexoraApp() {
             <View
               style={[
                 s.handle,
-                { backgroundColor: dark ? "#3A4A5A" : "#D9E3DD" },
+                {
+                  alignSelf: "center",
+                  marginTop: 10,
+                  marginBottom: -4,
+                  backgroundColor: dark ? "#3A4A5A" : "#D9E3DD",
+                },
               ]}
             />
             <Panels n={n} traffic={traffic} live={liveUi} />
@@ -1061,149 +1069,150 @@ export default function NexoraApp() {
     </View>
   );
 }
-function HomeCard({ n }: { n: AppModel }) {
+function HomeCard({
+  n,
+  open,
+  onToggle,
+}: {
+  n: AppModel;
+  open: boolean;
+  onToggle?: () => void;
+}) {
   const dark = n.prefs.dark,
     ink = dark ? "#EDF4F1" : palette.ink,
-    muted = dark ? "#A0B4AF" : palette.muted;
+    muted = dark ? "#A0B4AF" : palette.muted,
+    accent = dark ? "#62D6BB" : palette.teal;
+  // Swipe up or down on the handle, or tap it, to show or hide suggestions.
+  const drag = useMemo(
+    () =>
+      PanResponder.create({
+        onStartShouldSetPanResponder: () => true,
+        onPanResponderRelease: (_, g) => {
+          if (!onToggle) return;
+          if (Math.abs(g.dy) < 8) onToggle();
+          else if (g.dy < 0 !== open) onToggle();
+        },
+      }),
+    [onToggle, open],
+  );
   return (
-    <ScrollView
-      showsVerticalScrollIndicator={false}
-      contentContainerStyle={s.homeContent}
-    >
-      <View style={s.sectionRow}>
-        <Text style={[s.eyebrow, { color: dark ? "#62D6BB" : palette.teal }]}>
-          LESS SECOND-GUESSING. MORE GOING.
-        </Text>
-        <Pressable
+    <View>
+      {onToggle && (
+        <View
+          {...drag.panHandlers}
+          accessible
           accessibilityRole="button"
-          accessibilityLabel="Learn about NEXORA"
-          style={s.infoTap}
-          onPress={() => n.setPanel("onboard")}
-        >
-          <Icon name="info" size={17} color={muted} />
-        </Pressable>
-      </View>
-      <Text style={[s.homeTitle, { color: ink }]}>
-        A better way to your day.
-      </Text>
-      <Text style={[s.homeCopy, { color: muted }]}>
-        Find a place. Choose your pace.
-      </Text>
-      <View style={s.shortcutRow}>
-        {(
-          [
-            { name: "Home", icon: "home", place: n.home, field: "home" },
-            { name: "Work", icon: "briefcase", place: n.work, field: "work" },
-          ] as const
-        ).map(({ name, icon, place, field }) => (
-          <Pressable
-            key={name}
-            accessibilityRole="button"
-            onPress={() => {
-              if (place) {
-                n.setSearchFor("destination");
-                n.choosePlace(place, "destination");
-              } else n.openSearch(field);
-            }}
-            style={[
-              s.shortcut,
-              { backgroundColor: dark ? "#22374A" : "#F3F6F3" },
-            ]}
-          >
-            <View
-              style={[
-                s.shortcutIcon,
-                { backgroundColor: dark ? "#2B454A" : "#E4EDE7" },
-              ]}
-            >
-              <Icon
-                name={icon}
-                size={18}
-                color={dark ? "#62D6BB" : palette.teal}
-              />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={[s.shortcutTitle, { color: ink }]}>{name}</Text>
-              <Text style={[s.shortcutSub, { color: muted }]}>
-                {place ? "Saved locally" : "Set location"}
-              </Text>
-            </View>
-            {!place && <Icon name="plus" size={15} color={muted} />}
-          </Pressable>
-        ))}
-      </View>
-      <View style={[s.sectionRow, { marginTop: 8 }]}>
-        <Text style={[s.eyebrow, { color: muted }]}>
-          A LITTLE LONDON INSPIRATION
-        </Text>
-        <Text style={[s.demoLabel, { color: muted }]}>Demo catalogue</Text>
-      </View>
-      {[DEMO_PLACES[1], DEMO_PLACES[2]].map((p, i) => (
-        <Pressable
-          key={p.id}
-          accessibilityRole="button"
-          onPress={() => {
-            n.setSearchFor("destination");
-            n.choosePlace(p, "destination");
-          }}
-          style={[
-            s.inspiration,
-            { borderTopColor: dark ? "#2C3D4F" : "#E8EEE9" },
-          ]}
+          accessibilityLabel={open ? "Hide suggestions" : "Show suggestions"}
+          accessibilityState={{ expanded: open }}
+          onAccessibilityTap={onToggle}
+          style={s.handleArea}
         >
           <View
             style={[
-              s.inspireIcon,
-              {
-                backgroundColor:
-                  i === 0
-                    ? dark
-                      ? "#34394C"
-                      : "#EFEEF5"
-                    : dark
-                      ? "#1D3D35"
-                      : "#EAF2E7",
-              },
+              s.handle,
+              { backgroundColor: dark ? "#3A4E62" : "#D5DDD8" },
             ]}
-          >
-            <Icon
-              name={i === 0 ? "aperture" : "sun"}
-              size={24}
-              color={
-                i === 0
-                  ? dark
-                    ? "#B8AFE4"
-                    : "#78729C"
-                  : dark
-                    ? "#86C9A9"
-                    : "#5A8266"
-              }
-            />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={[s.inspireTitle, { color: ink }]}>{p.name}</Text>
-            <Text style={[s.inspireSub, { color: muted }]}>
-              {i === 0
-                ? "A little culture by the Thames"
-                : "Make room for a greener route"}
-            </Text>
-          </View>
-          <Icon name="arrow-up-right" size={19} color={muted} />
-        </Pressable>
-      ))}
-    </ScrollView>
+          />
+        </View>
+      )}
+      <ScrollView
+        scrollEnabled={open}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={[
+          s.homeContent,
+          !onToggle && { paddingTop: space.xl },
+        ]}
+      >
+        <View style={s.shortcutRow}>
+          {(
+            [
+              { name: "Home", icon: "home", place: n.home, field: "home" },
+              {
+                name: "Work",
+                icon: "briefcase",
+                place: n.work,
+                field: "work",
+              },
+            ] as const
+          ).map(({ name, icon, place, field }) => (
+            <Pressable
+              key={name}
+              accessibilityRole="button"
+              accessibilityLabel={place ? `Go ${name}` : `Set ${name} location`}
+              onPress={() => {
+                if (place) {
+                  n.setSearchFor("destination");
+                  n.choosePlace(place, "destination");
+                } else n.openSearch(field);
+              }}
+              style={({ pressed }) => [
+                s.shortcut,
+                { backgroundColor: dark ? "#1E3043" : "#F3F6F4" },
+                pressed && { opacity: 0.75 },
+              ]}
+            >
+              <Icon name={icon} size={18} color={accent} />
+              <View style={{ flex: 1 }}>
+                <Text style={[s.shortcutTitle, { color: ink }]}>{name}</Text>
+                <Text style={[s.shortcutSub, { color: muted }]}>
+                  {place ? "Saved" : "Set location"}
+                </Text>
+              </View>
+            </Pressable>
+          ))}
+        </View>
+        {open && (
+          <>
+            <Text style={[s.sectionLabel, { color: muted }]}>Suggestions</Text>
+            {[DEMO_PLACES[1], DEMO_PLACES[2]].map((p, i) => (
+              <Pressable
+                key={p.id}
+                accessibilityRole="button"
+                onPress={() => {
+                  n.setSearchFor("destination");
+                  n.choosePlace(p, "destination");
+                }}
+                style={({ pressed }) => [
+                  s.inspiration,
+                  pressed && { opacity: 0.75 },
+                ]}
+              >
+                <View
+                  style={[
+                    s.inspireIcon,
+                    { backgroundColor: dark ? "#1E3043" : "#F3F6F4" },
+                  ]}
+                >
+                  <Icon
+                    name={i === 0 ? "aperture" : "sun"}
+                    size={18}
+                    color={accent}
+                  />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[s.inspireTitle, { color: ink }]}>{p.name}</Text>
+                  <Text style={[s.inspireSub, { color: muted }]}>
+                    {i === 0 ? "Gallery by the Thames" : "Park in east London"}
+                  </Text>
+                </View>
+                <Icon name="chevron-right" size={18} color={muted} />
+              </Pressable>
+            ))}
+          </>
+        )}
+      </ScrollView>
+    </View>
   );
 }
 function SecondaryPage({ n }: { n: AppModel }) {
   const dark = n.prefs.dark,
     ink = dark ? "#EDF4F1" : palette.ink,
     muted = dark ? "#A0B4AF" : palette.muted;
-  const header = (label: string, title: string, copy: string) => (
+  const header = (_label: string, title: string, copy: string) => (
     <>
-      <Text style={[s.eyebrow, { color: dark ? "#62D6BB" : palette.teal }]}>
-        {label}
+      <Text accessibilityRole="header" style={[s.homeTitle, { color: ink }]}>
+        {title}
       </Text>
-      <Text style={[s.homeTitle, { color: ink }]}>{title}</Text>
       <Text style={[s.homeCopy, { color: muted }]}>{copy}</Text>
     </>
   );
@@ -1232,7 +1241,7 @@ function SecondaryPage({ n }: { n: AppModel }) {
   return (
     <ScrollView
       showsVerticalScrollIndicator={false}
-      contentContainerStyle={s.homeContent}
+      contentContainerStyle={[s.homeContent, { paddingTop: space.xl }]}
     >
       {n.tab === "Trips" ? (
         <>
@@ -1468,65 +1477,40 @@ function SecondaryPage({ n }: { n: AppModel }) {
 }
 const s = StyleSheet.create({
   root: { flex: 1, overflow: "hidden" },
-  topArea: { position: "absolute", gap: 14 },
-  brandRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 8,
-  },
-  brand: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 13,
-    shadowColor: "#162C24",
-    shadowOpacity: 0.05,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 3 },
-  },
-  brandText: { fontWeight: "800", fontSize: 16, letterSpacing: 2 },
-  brandMaps: { fontWeight: "500", fontSize: 10, letterSpacing: 1.3 },
+  topArea: { position: "absolute", gap: space.sm },
   searchBar: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
-    paddingHorizontal: 17,
-    minHeight: 58,
-    borderRadius: 19,
-    shadowColor: "#172E25",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 16,
-    elevation: 3,
+    gap: space.md,
+    paddingHorizontal: space.lg,
+    minHeight: 52,
+    borderRadius: radius.md,
+    ...floatShadow,
   },
-  searchPlaceholder: { fontSize: 15, fontWeight: "500", flex: 1 },
-  searchDivider: { width: 1, height: 23 },
-  chips: { gap: 8, paddingBottom: 8 },
+  searchPlaceholder: { fontSize: type.body, fontWeight: "500", flex: 1 },
+  chips: { gap: space.sm, paddingBottom: space.xs },
   chip: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 7,
-    borderRadius: 22,
-    paddingHorizontal: 14,
-    minHeight: 48,
-    shadowColor: "#10271A",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 7,
+    gap: 6,
+    borderRadius: radius.pill,
+    paddingHorizontal: space.md,
+    minHeight: 36,
+    ...floatShadow,
+    shadowOpacity: 0.05,
   },
-  chipText: { fontSize: 12, fontWeight: "600" },
+  chipText: { fontSize: type.label, fontWeight: "600" },
   serverBanner: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    borderRadius: 14,
+    gap: space.sm,
+    paddingVertical: space.sm,
+    paddingHorizontal: space.md,
+    borderRadius: radius.sm,
+    ...floatShadow,
+    shadowOpacity: 0.05,
   },
-  serverText: { flex: 1, fontSize: 13, lineHeight: 18 },
+  serverText: { flex: 1, fontSize: type.label - 1, lineHeight: 17 },
   desktopBadge: { position: "absolute" },
   desktopTag: {
     paddingHorizontal: 16,
@@ -1536,10 +1520,10 @@ const s = StyleSheet.create({
     alignItems: "center",
     gap: 12,
   },
-  mapTools: { position: "absolute", gap: 10 },
+  mapTools: { position: "absolute", gap: space.sm },
   bottomSheet: {
     position: "absolute",
-    borderRadius: 25,
+    borderRadius: radius.lg,
     overflow: "hidden",
     shadowColor: "#0B2015",
     shadowOpacity: 0.12,
@@ -1547,83 +1531,61 @@ const s = StyleSheet.create({
     shadowRadius: 22,
     elevation: 8,
   },
-  handle: {
-    width: 35,
-    height: 4,
-    borderRadius: 3,
-    alignSelf: "center",
-    marginTop: 10,
-    marginBottom: -4,
-  },
-  homeContent: {
-    paddingHorizontal: 22,
-    paddingTop: 18,
-    paddingBottom: 16,
-    gap: 9,
-  },
-  sectionRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
+  handleArea: {
+    minHeight: 28,
+    paddingTop: space.sm,
     alignItems: "center",
-    gap: 5,
+    justifyContent: "flex-start",
   },
-  eyebrow: { fontSize: 9, fontWeight: "700", letterSpacing: 1.3 },
-  infoTap: {
-    width: 36,
-    height: 36,
-    justifyContent: "center",
-    alignItems: "flex-end",
+  handle: { width: 36, height: 4, borderRadius: 2 },
+  homeContent: {
+    paddingHorizontal: space.lg,
+    paddingTop: space.xs,
+    paddingBottom: space.lg,
+    gap: space.sm,
+  },
+  sectionLabel: {
+    fontSize: type.caption,
+    fontWeight: "600",
+    letterSpacing: 0.4,
+    textTransform: "uppercase",
+    marginTop: space.md,
   },
   homeTitle: {
-    fontSize: 24,
+    fontSize: type.title,
     fontWeight: "700",
-    letterSpacing: -0.8,
-    lineHeight: 31,
+    letterSpacing: -0.4,
+    lineHeight: 26,
   },
-  homeCopy: { fontSize: 13, lineHeight: 20 },
-  shortcutRow: {
-    flexDirection: "row",
-    gap: 10,
-    marginTop: 10,
-    marginBottom: 11,
-  },
+  homeCopy: { fontSize: type.label, lineHeight: 19 },
+  shortcutRow: { flexDirection: "row", gap: space.sm },
   shortcut: {
     flex: 1,
-    minHeight: 64,
+    minHeight: 56,
     flexDirection: "row",
     alignItems: "center",
-    gap: 9,
-    paddingHorizontal: 10,
-    borderRadius: 16,
+    gap: space.md,
+    paddingHorizontal: space.md,
+    borderRadius: radius.sm,
   },
-  shortcutIcon: {
-    width: 34,
-    height: 34,
-    borderRadius: 11,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  shortcutTitle: { fontSize: 13, fontWeight: "600" },
-  shortcutSub: { fontSize: 10, marginTop: 3 },
+  shortcutTitle: { fontSize: type.label + 1, fontWeight: "600" },
+  shortcutSub: { fontSize: type.caption, marginTop: 2 },
   demoLabel: { fontSize: 9, lineHeight: 16 },
   inspiration: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 13,
-    paddingTop: 12,
-    paddingBottom: 7,
-    borderTopWidth: 1,
-    minHeight: 72,
+    gap: space.md,
+    minHeight: 56,
   },
   inspireIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 15,
+    width: 40,
+    height: 40,
+    borderRadius: radius.sm,
     alignItems: "center",
     justifyContent: "center",
   },
-  inspireTitle: { fontSize: 14, fontWeight: "600" },
-  inspireSub: { fontSize: 11, lineHeight: 17, marginTop: 4 },
+  inspireTitle: { fontSize: type.label + 1, fontWeight: "600" },
+  inspireSub: { fontSize: type.caption + 1, lineHeight: 17, marginTop: 2 },
   bottomNav: {
     position: "absolute",
     flexDirection: "row",
@@ -1748,9 +1710,9 @@ const s = StyleSheet.create({
     flexDirection: "row",
     gap: 12,
     alignItems: "center",
-    minHeight: 70,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
+    minHeight: 60,
+    paddingVertical: space.md,
+    borderBottomWidth: StyleSheet.hairlineWidth,
   },
   rerouteOptions: { flexDirection: "row", gap: 8 },
 });

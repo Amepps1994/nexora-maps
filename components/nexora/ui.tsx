@@ -13,6 +13,24 @@ export const palette = {
   blue: "#397BFF",
   amber: "#9B6500",
 };
+// One spacing, radius and type scale for the home surfaces, so cards,
+// chips and sheets line up instead of each picking its own numbers.
+export const space = { xs: 4, sm: 8, md: 12, lg: 16, xl: 20, xxl: 24 };
+export const radius = { sm: 12, md: 16, lg: 22, pill: 999 };
+export const type = {
+  caption: 11,
+  label: 13,
+  body: 15,
+  title: 20,
+};
+// A single soft shadow for floating controls on the map.
+export const floatShadow = {
+  shadowColor: "#0B1220",
+  shadowOffset: { width: 0, height: 2 },
+  shadowOpacity: 0.08,
+  shadowRadius: 10,
+  elevation: 2,
+} as const;
 export function Mark({
   size = 30,
   color = "#087F73",
