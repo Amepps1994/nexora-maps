@@ -1,0 +1,81 @@
+{
+  "schema_version": "1.0",
+  "audit_timestamp": "2026-11-28T05:56:34Z",
+  "audit_mode": "read-only (only this directory was written)",
+  "prompt": "NEXORA-Maps Claude Roadmap Prompt V2 (28 Nov 2026)",
+  "repo_relative_report_path": "docs/roadmap/reaudit-2026-11-28-e2bd944/",
+  "repository": "Amepps1994/nexora-maps",
+  "branch": "main",
+  "head_sha": "e2bd944",
+  "head_sha_full_note": "e2bd944 = 'Merge pull request #8 from Amepps1994/chore/remove-unused-server-deps', committed 2026-11-27T19:11:35Z; main was even with origin/main at audit time",
+  "comparison_sha": "7d4215a",
+  "comparison_source": "Recorded in the previous audit (docs/roadmap/*.md on branch docs/roadmap-audit-2026-11-27, PR #2, still open and not on main)",
+  "comparison_confidence": "high",
+  "comparison_confidence_reason": "The previous audit names 7d4215a and says it ran on a fresh, clean cloud clone, so no unrecorded dirty-tree state is involved. 7d4215a exists locally and is an ancestor of e2bd944.",
+  "working_tree_status": [
+    { "path": "docs/screenshots/apk-e2bd944-2026-11-28/", "status": "untracked", "used_as_evidence": true, "files": ["back-key-end-guidance.png", "guidance-arrow.png", "offline-installed.png", "route-tfl-disruptions.png", "search-tate-modern.png"] }
+  ],
+  "staged_changes": "none",
+  "unstaged_tracked_changes": "none",
+  "local_branches_noted": [
+    { "name": "wip/local-snap", "tip": "9891fcc", "pushed": false, "note": "One WIP commit on top of e4e5af7 adding server/nexora/snap.ts; read with git show only; appears superseded by server/nexora/bike-snap.ts (DEBT-009). Not modified." }
+  ],
+  "tags": [],
+  "scope": {
+    "tracked": "All Git-tracked source, config, tests and docs at e2bd944, read statically; large binaries (offline PMTiles pack, map-assets vendored JS) inspected by metadata only",
+    "untracked_included": ["docs/screenshots/apk-e2bd944-2026-11-28/*.png (viewed as runtime evidence)"],
+    "excluded": ["node_modules/", "dist-web/ (ignored build output)", ".env values (only variable names inspected)"]
+  },
+  "content_hashes": {
+    "method": "git blob object ids (SHA-1) at e2bd944 via `git rev-parse e2bd944:<path>`; portable across line-ending settings",
+    "scope": "Source files with findings in this audit",
+    "files": {
+      "shared/nexora/car-guidance.ts": "0732ee6e2d36ce5af0e910be8ecf348b919fdbeb",
+      "shared/nexora/session.ts": "406dda6266149df96a205cbe5482a0d4dbb7dd5c",
+      "shared/nexora/guidance.ts": "a58642611721e8b7ecd65ca4cf874a202f4a1c12",
+      "shared/nexora/maneuver.ts": "aa2ec10a34de78bd2c0bba43622d47c92e665ba3",
+      "shared/nexora/reroute.ts": "444c072f086fa24df79bde89e012f289bd43da54",
+      "lib/nexora-api-core.ts": "6e889277d37e361268d65b0829a45b6747b61ebf",
+      "hooks/use-nexora.ts": "933c82a85edd86aad81d76ea474f0d76fa0da21a",
+      "components/nexora/NexoraApp.tsx": "a3e0ae8cb89c9b69de6f79b2dbbd6c81e1d328e9",
+      "components/nexora/Panels.tsx": "d1009f6ae448f5de956ae648d35f9dd0a11b2675",
+      "server/nexora/routes.ts": "03c5c9256ae39d6b4ee5c17e7a873f88c49d8732",
+      "server/nexora/map-document.ts": "990a397d33bcf1463b5543d403ead222b9398b71",
+      "server/_core/app.ts": "00a67023049cfdffff834b967c9e570ed2dd1bdd"
+    }
+  },
+  "reports": [
+    "MASTER_ROADMAP.md",
+    "TECHNICAL_AUDIT.md",
+    "FEATURE_BACKLOG.md",
+    "IMPLEMENTATION_PLAN.md",
+    "PRIORITISED_BACKLOG.csv",
+    "UPDATE_CHANGE_AUDIT.md",
+    "ROADMAP_RECONCILIATION.md",
+    "AUDIT_BASELINE.json",
+    "NEXT_SPRINT.md"
+  ],
+  "validation_summary": {
+    "typecheck": { "command": "node node_modules/typescript/bin/tsc --noEmit", "outcome": "PASS", "exit_code": 0 },
+    "unit_tests": { "command": "node node_modules/vitest/vitest.mjs run", "outcome": "PASS", "exit_code": 0, "files": 19, "tests_passed": 475, "tests_failed": 0 },
+    "server_build": { "command": "esbuild server/_core/index.ts ... --outdir=<scratch>", "outcome": "PASS", "exit_code": 0, "bundle": "45.7 kB" },
+    "lint_local": { "command": "pnpm lint (expo lint)", "outcome": "BLOCKED", "reason": "pnpm is not on PATH on this PC; a direct eslint run is not equivalent to expo lint and was not counted" },
+    "lint_ci": { "source": "GitHub Actions run 46054949938 on e2bd944", "outcome": "PASS" },
+    "ci_status": { "source": "gh run list", "outcome": "PASS", "note": "All recent PR and main runs green; main has no branch protection (API 404)" },
+    "device_or_emulator_runs": { "outcome": "SKIPPED", "reason": "Not run by this audit; owner-supplied emulator screenshots of the e2bd944 APK were reviewed" },
+    "live_services": { "outcome": "SKIPPED", "reason": "No calls to Render, LocationIQ, OSRM or TfL by rule" }
+  },
+  "backlog_summary": {
+    "prior_items": 70,
+    "prior_outcomes": { "COMPLETED_VERIFIED": 14, "IMPLEMENTED_UNVERIFIED": 10, "PARTIAL": 10, "OPEN": 35, "SUPERSEDED": 1, "REGRESSED": 0, "OBSOLETE": 0, "DUPLICATE": 0, "UNKNOWN": 0 },
+    "new_items": 23,
+    "active_rows": 78,
+    "active_by_priority": { "P0": 2, "P1": 17, "P2": 36, "P3": 23 }
+  },
+  "limitations": [
+    "No device, emulator, DHU or Render runs by the auditor; runtime claims come only from the five owner screenshots and pure-function probes run with the repo's local tsx",
+    "Local Node is v26 while the project pins Node 22; tests passed locally and in CI on Node 22",
+    "The SHA alone does not reproduce the audit inputs: the untracked screenshots are outside Git",
+    "Render dashboard settings, real cold-start timings and LocationIQ plan quota are unknown"
+  ]
+}
