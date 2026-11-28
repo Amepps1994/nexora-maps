@@ -114,7 +114,7 @@ Roles must be assigned to actual people before beta. A gate stays blocked/not-ru
 | Next combined APK | `main` after WS-A to WS-F | 1.1.0 | Not built yet | Run the rows below, then LG-1 to LG-10 |
 
 Automated checks for the WS-F branch (28 Nov 2026, cloud clone, Node 22): `pnpm check` pass, `pnpm lint` no problems,
-`pnpm test` 19 files, 483 tests, all pass. These do not replace the emulator and device rows.
+`pnpm test` 22 files, 606 tests, all pass (after rebasing on main at c8ac668). These do not replace the emulator and device rows.
 
 ### Checks added for the 27 Nov sprint (run on the next combined APK)
 
