@@ -42,11 +42,13 @@ import { Badge, Button, Icon, IconButton, palette } from "./ui";
 import { StepList } from "./StepList";
 import {
   a11yColors,
+  guidanceStartChoices,
   isDemoOrigin,
   originNotice,
   panelServerNotice,
 } from "./screen-logic";
 import { requestGuidanceNotifications } from "@/lib/car/lock-screen-guidance";
+import { DEV_TOOLS } from "@/lib/dev-tools";
 import { useOfflineRegions } from "@/hooks/use-offline-regions";
 import { OFFLINE_REGIONS, formatBytes } from "@/shared/nexora/offline";
 export type AppModel = ReturnType<typeof useNexora>;
@@ -361,6 +363,7 @@ export function Panels({
   // UX-009: the search and routes sheets cover the home banner, so they show
   // the server waking / unreachable line themselves.
   const notice = panelServerNotice(n.serverState, n.busy, n.online);
+  const startChoices = guidanceStartChoices(n.route, DEV_TOOLS);
   const serverNotice = notice && (
     <View
       accessibilityLiveRegion="polite"
@@ -665,7 +668,7 @@ export function Panels({
           </View>
         </View>
         {note(
-          "Routes are for planning and simulated playback only. Verify local access, signage and restrictions independently.",
+          "Verify local access, signage and restrictions independently.",
         )}
       </>
     );
@@ -673,13 +676,8 @@ export function Panels({
     body = (
       <>
         {heading(
-          "Before you use live GPS",
-          "Please read this once for this version of the app.",
-        )}
-        {row(
-          "Not yet verified on a phone",
-          "Live guidance has not passed its physical-device tests. Directions or timing may be wrong.",
-          "alert-triangle",
+          "Before you start",
+          "A quick note, shown once for this version of the app.",
         )}
         {row(
           "Keep your eyes on the road",
@@ -692,17 +690,8 @@ export function Panels({
           "info",
         )}
         <Button
-          title="Start simulation instead"
-          icon="play"
-          onPress={() => {
-            live.cancelLive();
-            n.start("simulation");
-          }}
-        />
-        <Button
-          title="I understand, start live GPS"
+          title="Start navigation"
           icon="navigation"
-          secondary
           dark={dark}
           onPress={live.acceptLive}
         />
@@ -1224,28 +1213,29 @@ export function Panels({
                 dark={dark}
               />
             )}
-            {!n.route.demo && (
+            {startChoices.live && (
               <Button
-                title="Start live GPS guidance"
+                title="Start"
                 icon="navigation"
                 disabled={n.busy || n.error.includes("Recalculate")}
                 onPress={() => (live ? live.requestLive() : n.start("live"))}
               />
             )}
-            <Button
-              title="Start simulation"
-              icon="play"
-              secondary={!n.route.demo}
-              dark={dark}
-              disabled={n.busy || n.error.includes("Recalculate")}
-              onPress={() => n.start("simulation")}
-            />
-            {note(
-              n.route.demo
-                ? "SIMULATION ONLY · Synthetic demo route; live GPS guidance needs a provider route. Never use this preview for road guidance."
-                : "LIVE GPS · UNVERIFIED FOR ROAD USE · Not yet tested on a physical device. Obey road signs and keep your eyes on the road.",
-              true,
+            {startChoices.simulation && (
+              <Button
+                title="Simulate (developer)"
+                icon="play"
+                secondary={startChoices.live}
+                dark={dark}
+                disabled={n.busy || n.error.includes("Recalculate")}
+                onPress={() => n.start("simulation")}
+              />
             )}
+            {n.route.demo &&
+              note(
+                "This is a sample route because the route server couldn't be reached, so it can't guide you. Try again in a moment.",
+                true,
+              )}
           </>
         )}
         {disclosure("About these results", showAbout, () =>
@@ -1256,12 +1246,7 @@ export function Panels({
             {n.route &&
               !n.route.demo &&
               note(
-                "Live GPS follows your phone's GPS with spoken turns while the app is open. No live traffic or speed limits.",
-              )}
-            {n.route &&
-              !n.route.demo &&
-              note(
-                "Simulation replays the route on screen with voice, without using your location.",
+                "Navigation follows your phone's GPS with spoken turns while the app is open. No live traffic or speed limits.",
               )}
             <Text style={[s.tiny, { color: muted }]}>
               Stops are visited in the order shown; order optimisation and time
@@ -1347,7 +1332,7 @@ export function Panels({
         )}
         {row(
           "Navigation",
-          "Live GPS turn-by-turn (foreground) + simulator · unverified for road use until device-tested",
+          "Live GPS turn-by-turn with voice · works while the app is open",
           "play-circle",
         )}
         {row(
@@ -1711,7 +1696,7 @@ export function Panels({
                   }
                 />
               </View>
-              {r.status === "pending" && (
+              {r.status === "pending" && DEV_TOOLS && (
                 <Pressable
                   accessibilityRole="button"
                   style={s.link}
@@ -1772,8 +1757,7 @@ export function Panels({
           )}
         </View>
         {note(
-          "This development build offers simulated navigation and foreground live GPS guidance that is not yet verified for road use. Full offline routing is not enabled.",
-          true,
+          "Turn-by-turn navigation follows your GPS while the app is open. Full offline routing is not enabled.",
         )}
         <View
           style={[

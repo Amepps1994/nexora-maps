@@ -4,6 +4,7 @@ import { playbackAt } from "../shared/nexora/session";
 import { guidanceView, indexRoute } from "../shared/nexora/guidance";
 import { syntheticRoute, DEMO_PLACES } from "../shared/nexora/fixtures";
 import {
+  LIVE_STATUS_LABEL,
   ROAD_USE_LABEL,
   buildCarGuidance,
   carHostDistance,
@@ -185,7 +186,8 @@ describe("buildCarGuidance", () => {
     expect(s.remainingDurationS).toBe(180);
     expect(s.etaMs).toBe(1_000_000 + 180_000);
     expect(s.simulated).toBe(false);
-    expect(s.statusLine).toBe(ROAD_USE_LABEL);
+    expect(s.statusLine).toBe(LIVE_STATUS_LABEL);
+    expect(s.statusLine).not.toContain(ROAD_USE_LABEL);
     expect(s.destinationCoordinate).toEqual([-0.118218, 51.524604]);
   });
 

@@ -406,3 +406,52 @@ export function serverBanner(
     warning: true,
   };
 }
+
+// ---------------------------------------------------------------------------
+// Starting guidance: live GPS by default, simulation for developers only
+
+/**
+ * Developer tools (simulated navigation, test event buttons) appear in
+ * development builds, or in any build made with EXPO_PUBLIC_NEXORA_DEV_TOOLS=1.
+ * Release APKs show live GPS guidance only.
+ */
+export function devToolsEnabled(
+  isDev: boolean,
+  flag?: string | null,
+): boolean {
+  return isDev || flag?.trim() === "1";
+}
+
+/** Which start buttons the route sheet offers. */
+export function guidanceStartChoices(
+  route: Pick<Route, "demo"> | null | undefined,
+  devTools: boolean,
+): { live: boolean; simulation: boolean } {
+  if (!route) return { live: false, simulation: false };
+  // A synthetic sample route (server unreachable) does not start where the
+  // phone is, so it cannot be followed with GPS.
+  return { live: !route.demo, simulation: devTools };
+}
+
+export type LiveStartResult =
+  | "ok"
+  | "denied"
+  | "blocked"
+  | "services-off"
+  | "error";
+
+/** What to tell the user when live guidance could not start. */
+export function liveStartMessage(result: LiveStartResult): string {
+  switch (result) {
+    case "ok":
+      return "";
+    case "denied":
+      return "Navigation needs location access. Allow it when asked, then tap Start again.";
+    case "blocked":
+      return "Location is blocked for NEXORA. Allow it in system settings, then tap Start again.";
+    case "services-off":
+      return "Turn on location services, then tap Start again.";
+    default:
+      return "Couldn't get your location. Check location is on, then tap Start again.";
+  }
+}

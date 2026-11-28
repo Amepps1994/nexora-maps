@@ -25,6 +25,7 @@ import { distanceLabel, durationLabel } from "@/shared/nexora/domain";
 import { StepList } from "./StepList";
 import { liveAckRequired, saveLiveAck } from "./live-ack";
 import { requestGuidanceNotifications } from "@/lib/car/lock-screen-guidance";
+import { DEV_TOOLS } from "@/lib/dev-tools";
 import {
   a11yColors,
   backAction,
@@ -39,7 +40,7 @@ import {
 
 const LIVE_LABEL: Record<string, string> = {
   acquiring: "Waiting for GPS…",
-  "on-route": "Following your GPS",
+  "on-route": "On route",
   "weak-signal": "Weak GPS signal · position uncertain",
   "off-route": "Off route",
   rerouting: "Finding a new route…",
@@ -129,8 +130,8 @@ export default function NexoraApp() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [n.hydrated, n.prefs.onboardingSeen]);
 
-  // UX-003: the first live GPS start per install and app version asks for an
-  // acknowledgement. Simulation is the default choice on that sheet.
+  // UX-003: the first live GPS start per install and app version shows a
+  // short road-safety notice.
   const [liveAckOpen, setLiveAckOpen] = useState(false);
   const liveUi = {
     ackOpen: liveAckOpen,
@@ -469,7 +470,10 @@ export default function NexoraApp() {
               <View style={s.simDot} />
               <Text style={[s.simulationText, { color: colors.safetyLabel }]}>
                 {n.guidanceSource === "live"
-                  ? `LIVE GPS · UNVERIFIED FOR ROAD USE · ${LIVE_LABEL[n.liveGuidance.status] ?? ""}`
+                  ? ["LIVE", LIVE_LABEL[n.liveGuidance.status]]
+                      .filter(Boolean)
+                      .join(" · ")
+                      .toUpperCase()
                   : "SIMULATION ONLY · NOT ROAD GUIDANCE"}
               </Text>
             </View>
@@ -668,6 +672,7 @@ export default function NexoraApp() {
                     onPress={() => n.setMuted(!n.muted)}
                   />
                 )}
+                {DEV_TOOLS && (
                 <IconButton
                   name="flag"
                   dark={dark}
@@ -682,6 +687,7 @@ export default function NexoraApp() {
                     else n.setPanel("report");
                   }}
                 />
+                )}
                 <IconButton
                   name="list"
                   dark={dark}
@@ -713,7 +719,7 @@ export default function NexoraApp() {
                   dark={dark}
                 />
               )}
-              {n.guidanceSource !== "live" && (
+              {n.guidanceSource !== "live" && DEV_TOOLS && (
                 <>
                   <View style={s.simEvents}>
                     {[
@@ -1018,7 +1024,7 @@ export default function NexoraApp() {
         >
           {n.active
             ? n.guidanceSource === "live"
-              ? "Live GPS · unverified for road use · foreground only"
+              ? "Live GPS · keep the app open"
               : "Simulation only · not for road use"
             : "Online map · demo places · test routes"}
         </Text>

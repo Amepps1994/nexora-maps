@@ -16,6 +16,8 @@ import {
   idleCarGuidance,
 } from "@/lib/nexora-controllers";
 import { buildCarGuidance } from "@/shared/nexora/car-guidance";
+import { DEV_TOOLS } from "@/lib/dev-tools";
+import { liveStartMessage } from "@/components/nexora/screen-logic";
 import { onCarCommand, publishCarGuidance } from "@/lib/car/guidance-bus";
 import type { Coord, Place, Route, Incident } from "@/shared/nexora/domain";
 import {
@@ -124,7 +126,7 @@ export function useNexora() {
   const [paused, setPaused] = useState(false);
   const [muted, setMuted] = useState(false);
   const [guidanceSource, setGuidanceSource] = useState<"simulation" | "live">(
-    "simulation",
+    "live",
   );
   const [tripSeq, setTripSeq] = useState(0);
   const [event, setEvent] = useState("");
@@ -508,18 +510,23 @@ export function useNexora() {
       if (generation === requestGeneration.current) setBusy(false);
     }
   }
-  /** Start guidance. "live" follows device GPS and is unverified for road use. */
-  async function start(source: "simulation" | "live" = "simulation") {
+  /**
+   * Start guidance. "live" (the default) follows device GPS; "simulation"
+   * replays the route and is a developer tool only (DEV_TOOLS).
+   */
+  async function start(source: "simulation" | "live" = "live") {
     locationGeneration.current += 1;
     if (!route || busy || state !== "preview") return;
+    if (source === "simulation" && !DEV_TOOLS) return;
     if (source === "live") {
-      const ok = await live.start();
-      if (!ok) {
-        setToast(
-          "Live GPS guidance needs foreground location permission. Simulation is still available.",
-        );
+      const result = await live.start();
+      if (result !== "ok") {
+        if (result !== "error") setPermission(result);
+        setToast(liveStartMessage(result));
+        if (result === "blocked") Linking.openSettings().catch(() => {});
         return;
       }
+      setPermission("granted");
     } else live.stop();
     setGuidanceSource(source);
     reroute.reset();
@@ -544,7 +551,7 @@ export function useNexora() {
     setGps(undefined);
     setToast(
       guidanceSource === "live"
-        ? "Live guidance ended. The location watch is stopped."
+        ? "Navigation ended. Location is no longer in use."
         : "Simulation ended. Location is no longer active.",
     );
   }
@@ -583,7 +590,7 @@ export function useNexora() {
   }
   async function locate() {
     if (active) {
-      setToast("Pause the simulation before requesting device location.");
+      setToast("End navigation before requesting device location.");
       return;
     }
     if (permission === "blocked") {
