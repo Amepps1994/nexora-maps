@@ -1,0 +1,97 @@
+evidence_id,task_ids,sha,file_function_line,command_or_test,result,date,limitations
+EV-001,BUG-010,05eeaca,"shared/nexora/car-guidance.ts:64-65,219;tests/nexora-car-guidance.test.ts",static read at 05eeaca (git show / Read),implemented-unverified,2026-11-28,No device evidence
+EV-002,QA-004,05eeaca,"docs/DEVICE_TEST_PLAN.md:114,161;docs/screenshots/apk-e2bd944-2026-11-28/",Physical Android phone + emulator + DHU; passenger-operated or closed-area tests only,open,2026-11-28,No device evidence
+EV-003,QA-001,05eeaca,"GitHub API branches/main/protection (contexts=[verify], enforce_admins=false);render.yaml",gh api .../protection; Render dashboard screenshot,partial,2026-11-28,
+EV-004,BUG-001,05eeaca,lib/nexora-api-core.ts;components/nexora/JourneyMap.tsx:130-160,static read at 05eeaca (git show / Read),implemented-unverified,2026-11-28,No device evidence
+EV-005,BUG-012,05eeaca,server/nexora/route-mapper.ts;shared/nexora/maneuver.ts;tests/nexora-route-mapper.test.ts,static read at 05eeaca (git show / Read),implemented-unverified,2026-11-28,No device evidence
+EV-006,A11Y-006,05eeaca,components/nexora/screen-logic.ts;tests/nexora-screens.test.ts,static read at 05eeaca (git show / Read),implemented-unverified,2026-11-28,No device evidence
+EV-007,SEC-013,05eeaca,render.yaml:5-6;docs/HANDOVER.md,Owner checklist,owner-check,2026-11-28,No device evidence
+EV-008,BUG-011,05eeaca,shared/nexora/session.ts;tests/nexora-session.test.ts,static read at 05eeaca (git show / Read),verified-fixed,2026-11-28,No device evidence
+EV-009,SEC-011,05eeaca,"server/nexora/geocoder.ts:101-124,141,185-215;server/nexora/routes.ts:633-645",static read at 05eeaca (git show / Read),partial,2026-11-28,No device evidence
+EV-010,SEC-006,05eeaca,server/nexora/map-document.ts;server/nexora/map3d-document.ts:131;tests/nexora-map-document.test.ts,static read at 05eeaca (git show / Read),verified-fixed,2026-11-28,No device evidence
+EV-011,SEC-007,05eeaca,server/nexora/routes.ts:53-110;tests/server-routes.test.ts,static read at 05eeaca (git show / Read),verified-fixed,2026-11-28,No device evidence
+EV-012,QA-003,05eeaca,tests/server-routes.test.ts,vitest (647 pass on CI),verified-fixed,2026-11-28,
+EV-013,BUG-013,05eeaca,lib/nexora-api-core.ts;tests/nexora-client-api.test.ts,static read at 05eeaca (git show / Read),implemented-unverified,2026-11-28,No device evidence
+EV-014,SEC-005,05eeaca,server/_core/app.ts:76;render.yaml (NEXORA_TRUST_PROXY=1),static read at 05eeaca (git show / Read),partial,2026-11-28,No device evidence
+EV-015,UX-010,05eeaca,lib/car/lock-screen-guidance.ts;tests/nexora-screens.test.ts,static read at 05eeaca (git show / Read),implemented-unverified,2026-11-28,No device evidence
+EV-016,UX-001,05eeaca,server/nexora/map-document.ts;server/nexora/map3d-document.ts:62-69,static read at 05eeaca (git show / Read),implemented-unverified,2026-11-28,No device evidence
+EV-017,OPS-005,05eeaca,render.yaml (buildCommand --prod=false),static read at 05eeaca (git show / Read),owner-check,2026-11-28,No device evidence
+EV-018,QA-002,05eeaca,lib/nexora-controllers.ts;tests/nexora-client-controllers.test.ts;hooks/use-nexora.ts,static read at 05eeaca (git show / Read),partial,2026-11-28,No device evidence
+EV-019,UX-009,05eeaca,components/nexora/Panels.tsx;tests/nexora-screens.test.ts,static read at 05eeaca (git show / Read),implemented-unverified,2026-11-28,No device evidence
+EV-020,A11Y-001,05eeaca,components/nexora/NexoraApp.tsx,Device TalkBack,open,2026-11-28,No device evidence
+EV-021,UX-005,05eeaca,components/nexora/NexoraApp.tsx;tests/nexora-screens.test.ts,static read at 05eeaca (git show / Read),implemented-unverified,2026-11-28,No device evidence
+EV-022,BUG-015,05eeaca,server/nexora/traffic.ts;tests/nexora-traffic.test.ts,static read at 05eeaca (git show / Read),verified-fixed,2026-11-28,No device evidence
+EV-023,BUG-008,05eeaca,components/nexora/screen-logic.ts,Emulator,open,2026-11-28,No device evidence
+EV-024,BUG-009,05eeaca,components/nexora/screen-logic.ts;hooks/use-nexora.ts:646-760,Fresh-install device test,open,2026-11-28,No device evidence
+EV-025,OPS-002,05eeaca,server/_core/index.ts;tests/server-lifecycle.test.ts,CI 647/647; locally 2 lifecycle tests fail on Windows (SIGTERM/port semantics),verified-fixed,2026-11-28,
+EV-026,UX-003,05eeaca,app.config.ts:64;docs/RELEASE.md,static read at 05eeaca (git show / Read),verified-fixed,2026-11-28,No device evidence
+EV-027,PRIV-001,05eeaca,app.config.ts:93,static read at 05eeaca (git show / Read),implemented-unverified,2026-11-28,No device evidence
+EV-028,OPS-001,05eeaca,render.yaml (healthCheckPath /api/health),static read at 05eeaca (git show / Read),verified-fixed,2026-11-28,No device evidence
+EV-029,BUG-006,05eeaca,lib/nexora-controllers.ts;tests/nexora-client-controllers.test.ts,static read at 05eeaca (git show / Read),verified-fixed,2026-11-28,No device evidence
+EV-030,OPS-006,05eeaca,server/_core/app.ts:38-58,static read at 05eeaca (git show / Read),verified-fixed,2026-11-28,No device evidence
+EV-031,BUG-014,05eeaca,hooks/use-nexora.ts (unmount publishes idle),static read at 05eeaca (git show / Read),implemented-unverified,2026-11-28,No device evidence
+EV-032,FEAT-001,05eeaca,components/nexora/Panels.tsx,Device,open,2026-11-28,No device evidence
+EV-033,GEO-004,05eeaca,server/nexora/routes.ts:35,static read at 05eeaca (git show / Read),verified-fixed,2026-11-28,No device evidence
+EV-034,DEBT-002,05eeaca,"lib/nexora-api-core.ts;hooks/use-nexora.ts:394-404,513-514",static read at 05eeaca (git show / Read),partial,2026-11-28,No device evidence
+EV-035,UX-002,05eeaca,"components/nexora/NexoraApp.tsx:1318,1339;components/nexora/Panels.tsx:1473",static read at 05eeaca (git show / Read),open,2026-11-28,No device evidence
+EV-036,UX-004,05eeaca,lib/dev-tools.ts:8;tests/nexora-live-start.test.ts,static read at 05eeaca (git show / Read),verified-fixed,2026-11-28,No device evidence
+EV-037,A11Y-003,05eeaca,components/nexora/*.tsx,Script over palette + screenshots,open,2026-11-28,No device evidence
+EV-038,QA-006,05eeaca,tests/server-routes.test.ts;tests/nexora-car-guidance.test.ts,static read at 05eeaca (git show / Read),verified-fixed,2026-11-28,No device evidence
+EV-039,SEC-008,05eeaca,server/_core/app.ts:30;server/nexora/routes.ts:719-741;server/nexora/map3d-document.ts:150-170,static read at 05eeaca (git show / Read),verified-fixed,2026-11-28,No device evidence
+EV-040,DEBT-005,05eeaca,app.config.ts:5-37;package.json:2-3,static read at 05eeaca (git show / Read),owner-check,2026-11-28,No device evidence
+EV-041,OPS-007,05eeaca,server/nexora/routes.ts:367;server/nexora/places.ts:287-313,static read at 05eeaca (git show / Read),verified-fixed,2026-11-28,No device evidence
+EV-042,GEO-001,05eeaca,shared/nexora/guidance.ts:120-145,GPX replay of a loop,open,2026-11-28,No device evidence
+EV-043,SEC-002,05eeaca,app/_layout.tsx;tests/release-config.test.ts,static read at 05eeaca (git show / Read),verified-fixed,2026-11-28,No device evidence
+EV-044,BUG-007,05eeaca,shared/nexora/reroute.ts;hooks/use-live-guidance.ts:156-200,Emulator GPX,open,2026-11-28,No device evidence
+EV-045,FEAT-005,05eeaca,lib/dev-tools.ts,static read at 05eeaca (git show / Read),verified-fixed,2026-11-28,No device evidence
+EV-046,DOC-003,05eeaca,"docs/DEVICE_TEST_PLAN.md:30,101,114,161;docs/FEATURE_MANIFEST.json",static read at 05eeaca (git show / Read),partial,2026-11-28,No device evidence
+EV-047,GEO-002,05eeaca,lib/offline-pack.ts,static read at 05eeaca (git show / Read),open,2026-11-28,No device evidence
+EV-048,PERF-001,05eeaca,components/nexora/JourneyMap.tsx:209-236;components/nexora/NexoraApp.tsx:98-112,static read at 05eeaca (git show / Read),open,2026-11-28,No device evidence
+EV-049,A11Y-002,05eeaca,components/nexora/Panels.tsx (4 accessibilityState uses),static read at 05eeaca (git show / Read),partial,2026-11-28,No device evidence
+EV-050,GEO-003,05eeaca,server/nexora/map-document.ts:35;server/nexora/routes.ts:734,static read at 05eeaca (git show / Read),open,2026-11-28,No device evidence
+EV-051,A11Y-004,05eeaca,components/nexora/*.tsx (8 fontSize 9/10 uses),static read at 05eeaca (git show / Read),open,2026-11-28,No device evidence
+EV-052,DEBT-003,05eeaca,components/nexora/Panels.tsx (2051 lines);components/nexora/NexoraApp.tsx (1751);hooks/use-nexora.ts (1113),static read at 05eeaca (git show / Read),open,2026-11-28,No device evidence
+EV-053,FEAT-007,05eeaca,hooks/use-live-guidance.ts;app.config.ts,Device screen-off drive (passenger),blocked,2026-11-28,No device evidence
+EV-054,DEBT-001,05eeaca,"components/ (hello-wave, parallax removed)",static read at 05eeaca (git show / Read),verified-fixed,2026-11-28,No device evidence
+EV-055,SEC-012,05eeaca,server/_core/cors.ts;tests/cors.test.ts,static read at 05eeaca (git show / Read),verified-fixed,2026-11-28,No device evidence
+EV-056,PERF-004,05eeaca,server/nexora/traffic.ts;tests/nexora-traffic.test.ts,static read at 05eeaca (git show / Read),verified-fixed,2026-11-28,No device evidence
+EV-057,DOC-002,05eeaca,docs/test-output.txt;docs/test-output-2026-11-27.txt,static read at 05eeaca (git show / Read),open,2026-11-28,No device evidence
+EV-058,UX-006,05eeaca,components/nexora/NexoraApp.tsx,screens test,open,2026-11-28,No device evidence
+EV-059,A11Y-005,05eeaca,components/nexora/Panels.tsx;components/nexora/NexoraApp.tsx,static read at 05eeaca (git show / Read),open,2026-11-28,No device evidence
+EV-060,OPS-008,05eeaca,package.json engines;.nvmrc;tests/server-lifecycle.test.ts:68-69,Local run 647/647,open,2026-11-28,
+EV-061,GEO-007,05eeaca,server/nexora/offline.ts,static read at 05eeaca (git show / Read),open,2026-11-28,No device evidence
+EV-062,DEBT-007,05eeaca,components/nexora/JourneyMap.tsx;server/nexora/route-mapper.ts,static read at 05eeaca (git show / Read),open,2026-11-28,No device evidence
+EV-063,DEBT-009,05eeaca,wip/local-snap@9891fcc,static read at 05eeaca (git show / Read),owner-check,2026-11-28,No device evidence
+EV-064,DEBT-006,05eeaca,components/nexora/ui.tsx (new tokens);components/nexora/*.tsx,static read at 05eeaca (git show / Read),partial,2026-11-28,No device evidence
+EV-065,GEO-006,05eeaca,shared/nexora/traffic.ts,static read at 05eeaca (git show / Read),open,2026-11-28,No device evidence
+EV-066,UX-007,05eeaca,components/nexora/NexoraApp.tsx (9e1166f),static read at 05eeaca (git show / Read),implemented-unverified,2026-11-28,No device evidence
+EV-067,QA-005,05eeaca,tests/*,static read at 05eeaca (git show / Read),open,2026-11-28,No device evidence
+EV-068,UX-011,05eeaca,hooks/use-nexora.ts:740-743,static read at 05eeaca (git show / Read),open,2026-11-28,No device evidence
+EV-069,PRIV-003,05eeaca,server/nexora/routes.ts:610-611;hooks/use-nexora.ts:507-508,static read at 05eeaca (git show / Read),open,2026-11-28,No device evidence
+EV-070,PERF-003,05eeaca,server/nexora/offline.ts,static read at 05eeaca (git show / Read),open,2026-11-28,No device evidence
+EV-071,UX-008,05eeaca,"hooks/use-nexora.ts:68,89",static read at 05eeaca (git show / Read),open,2026-11-28,No device evidence
+EV-072,V4-POI-08,05eeaca,"hooks/use-nexora.ts:110,189-219,393,427-439,615,621,632-643",static read at 05eeaca (git show / Read),open,2026-11-28,No device evidence
+EV-073,V4-POI-01,05eeaca,server/nexora/places.ts:242-251 (cache) before 258 (limiter);server/nexora/routes.ts:624-638 (search limits first),static read at 05eeaca (git show / Read),open,2026-11-28,No device evidence
+EV-074,V4-POI-03,05eeaca,"server/nexora/places.ts:147-164,213-215,243-300;server/nexora/geocoder.ts:185-215;server/nexora/routes.ts:640",static read at 05eeaca (git show / Read),open,2026-11-28,No device evidence
+EV-075,V4-MAP-01,05eeaca,"server/nexora/map3d-document.ts:85 (render(latest,true)),112 (fitBounds skipped when fresh)",static read at 05eeaca (git show / Read),open,2026-11-28,No device evidence
+EV-076,V4-MAP-02,05eeaca,"server/nexora/map3d-document.ts:92,114",static read at 05eeaca (git show / Read),open,2026-11-28,No device evidence
+EV-077,V4-MAP-03,05eeaca,shared/nexora/map-view.ts:68-95;components/nexora/NexoraApp.tsx:104-106;shared/nexora/guidance.ts:120-145 (tracker already knows the matched segment),static read at 05eeaca (git show / Read),open,2026-11-28,No device evidence
+EV-078,V4-MAP-04,05eeaca,"server/nexora/map3d-document.ts:53-56,130,136",static read at 05eeaca (git show / Read),open,2026-11-28,No device evidence
+EV-079,V4-MAP-05,05eeaca,components/nexora/JourneyMap.tsx:145-161,Component test with fake timers,open,2026-11-28,No device evidence
+EV-080,V4-POI-07,05eeaca,"hooks/use-nexora.ts:406-426,440-445,499-522,539-545",static read at 05eeaca (git show / Read),open,2026-11-28,No device evidence
+EV-081,V4-POI-06,05eeaca,hooks/use-nexora.ts:427-439;components/nexora/Panels.tsx:537-556,static read at 05eeaca (git show / Read),open,2026-11-28,No device evidence
+EV-082,V4-POI-04,05eeaca,"shared/nexora/places.ts:98-110,282-299",static read at 05eeaca (git show / Read),open,2026-11-28,No device evidence
+EV-083,V4-POI-02,05eeaca,"shared/nexora/places.ts:187-189,251-253",static read at 05eeaca (git show / Read),open,2026-11-28,No device evidence
+EV-084,V4-POI-05,05eeaca,hooks/use-nexora.ts:394-404;shared/nexora/places.ts:270;components/nexora/Panels.tsx:606-623,static read at 05eeaca (git show / Read),open,2026-11-28,No device evidence
+EV-085,V4-REL-01,05eeaca,hooks/use-nexora.ts:586-610;ce8df0e;docs/DEVICE_TEST_PLAN.md:161,static read at 05eeaca (git show / Read),owner-check,2026-11-28,No device evidence
+EV-086,V4-REL-04,05eeaca,"EAS build 1a370f81 (1.2.0 / 5, gitCommitHash null, created 12:57:03Z, 23 s after 05eeaca CI start);eas.json",Inspect Settings > About on device; build_info shows hash,open,2026-11-28,
+EV-087,V4-NAV-01,05eeaca,"hooks/use-nexora.ts:110,586-610;hooks/use-live-guidance.ts:156-200",Unit test of the start check; emulator mock location far from origin,open,2026-11-28,No device evidence
+EV-088,V4-REL-03,05eeaca,(archive outside repo; .env not inspected),Owner checklist,owner-check,2026-11-28,No device evidence
+EV-089,V4-PRIV-04,05eeaca,hooks/use-nexora.ts:401,static read at 05eeaca (git show / Read),open,2026-11-28,No device evidence
+EV-090,V4-OPS-09,05eeaca,render.yaml:1-15;server/nexora/places.ts:36-97,static read at 05eeaca (git show / Read),open,2026-11-28,No device evidence
+EV-091,ALL,05eeaca,tsconfig.json,node node_modules/typescript/bin/tsc --noEmit,"exit 0, 2 s",2026-11-28,Node v26.13.1 on Windows (project pins 22)
+EV-092,ALL,05eeaca,tests/*,node node_modules/vitest/vitest.mjs run,"exit 1, 32 s: 25 files, 647 tests, 645 passed, 2 failed (tests/server-lifecycle.test.ts SIGTERM exit code null; listen-error test timed out 30 s)",2026-11-28,Windows signal/port semantics; see OPS-008
+EV-093,ALL,05eeaca,.github/workflows/ci.yml,"GitHub Actions run 46147129938 (pnpm check, lint, test, build, expo export)","success, 45 s: 25 files, 647/647 passed",2026-11-28,"Linux, Node 22"
+EV-094,ALL,05eeaca,server/_core/index.ts,esbuild ... --outdir=<scratch>,"exit 0, dist/index.js 99.2 kb",2026-11-28,Output written outside the repo
+EV-095,QA-001,05eeaca,GitHub API,gh api repos/.../branches/main/protection,required check 'verify'; enforce_admins false,2026-11-28,Render settings not visible
+EV-096,V4-REL-04;QA-004,05eeaca,EAS build 1a370f81-99c5-4847-ab17-7a4d543f53e8,Expo build_list (read only),"1.2.0 versionCode 5, production-apk, FINISHED 13:16:53Z, gitCommitHash null",2026-11-28,APK not downloaded or hashed (download needs approval)
