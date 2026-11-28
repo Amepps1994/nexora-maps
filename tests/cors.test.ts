@@ -3,6 +3,7 @@ import express from "express";
 import type { Server } from "node:http";
 import {
   createCorsMiddleware,
+  mapParentOrigins,
   isLoopbackApiHost,
   trustedExpoWebOrigins,
 } from "../server/_core/cors";
@@ -99,7 +100,7 @@ describe("Mobile API origin isolation", () => {
     });
     expect(web.status).toBe(200);
     expect(web.headers.get("access-control-allow-origin")).toBe(origin);
-    expect(web.headers.get("access-control-allow-credentials")).toBe("true");
+    expect(web.headers.get("access-control-allow-credentials")).toBeNull();
     expect(web.headers.get("vary")).toContain("Origin");
   });
 
@@ -168,5 +169,39 @@ describe("Mobile API origin isolation", () => {
     const native = await fetch(`${base}/write`, { method: "POST" });
     expect(native.status).toBe(200);
     expect(native.headers.get("access-control-allow-origin")).toBeNull();
+  });
+
+  it("advertises only anonymous GET/POST JSON for an allowed origin (SEC-012)", async () => {
+    const base = await testServer();
+    const origin = "https://8081-sandbox.example.test";
+    const preflight = await fetch(`${base}/write`, {
+      method: "OPTIONS",
+      headers: {
+        Origin: origin,
+        "Access-Control-Request-Method": "POST",
+        "Access-Control-Request-Headers": "content-type",
+      },
+    });
+    expect(preflight.status).toBe(204);
+    expect(preflight.headers.get("access-control-allow-origin")).toBe(origin);
+    expect(preflight.headers.get("access-control-allow-methods")).toBe("GET, POST, OPTIONS");
+    expect(preflight.headers.get("access-control-allow-headers")).toBe("Content-Type, Accept");
+    expect(preflight.headers.get("access-control-allow-credentials")).toBeNull();
+    const read = await fetch(`${base}/read`, { headers: { Origin: origin } });
+    expect(read.headers.get("access-control-allow-methods")).toBe("GET, POST, OPTIONS");
+    expect(read.headers.get("access-control-allow-headers")).toBe("Content-Type, Accept");
+    expect(read.headers.get("access-control-allow-credentials")).toBeNull();
+  });
+
+  it("lists map parent origins from the same trusted set plus exact loopback env", () => {
+    expect(mapParentOrigins()).toEqual([]);
+    vi.stubEnv("EXPO_PACKAGER_PROXY_URL", "https://8081-sandbox.region.preview.example.test");
+    expect(mapParentOrigins().sort()).toEqual([
+      "https://8081-sandbox.region.preview.example.test",
+      "https://8328-sandbox.region.preview.example.test",
+    ]);
+    vi.stubEnv("EXPO_PACKAGER_PROXY_URL", "http://localhost:8081");
+    vi.stubEnv("EXPO_WEB_PREVIEW_URL", "https://evil.example.test/path");
+    expect(mapParentOrigins()).toEqual(["http://localhost:8081"]);
   });
 });
