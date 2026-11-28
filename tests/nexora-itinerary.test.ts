@@ -308,7 +308,7 @@ describe("POST /api/nexora/routes with stops and avoidances", () => {
     );
     const app = express();
     app.use(express.json());
-    registerNexoraRoutes(app);
+    registerNexoraRoutes(app, { routerSpacingMs: 0, routesPerMinute: 100 });
     server = app.listen(0);
     await new Promise((r) => server.once("listening", r));
     base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
@@ -342,6 +342,24 @@ describe("POST /api/nexora/routes with stops and avoidances", () => {
     ).json();
     expect(caps.routing.avoid.driving).toEqual([]);
     expect(caps.routing.alternativesWithStops).toBe(false);
+    // GEO-004: the server advertises the same stop limit the app enforces.
+    expect(caps.routing.maxStops).toBe(MAX_INTERMEDIATE_STOPS);
+  });
+  it(`accepts ${MAX_INTERMEDIATE_STOPS} stops and rejects ${MAX_INTERMEDIATE_STOPS + 1} without calling the provider (GEO-004)`, async () => {
+    const stop = (i: number) => [-0.11 + i * 0.001, 51.52];
+    const ok = await post({
+      ...trip,
+      stops: Array.from({ length: MAX_INTERMEDIATE_STOPS }, (_, i) => stop(i)),
+    });
+    expect(ok.status).toBe(200);
+    providerCalls.length = 0;
+    const tooMany = await post({
+      ...trip,
+      stops: Array.from({ length: MAX_INTERMEDIATE_STOPS + 1 }, (_, i) => stop(i)),
+    });
+    expect(tooMany.status).toBe(400);
+    expect((await tooMany.json()).error).toContain(`at most ${MAX_INTERMEDIATE_STOPS} stops`);
+    expect(providerCalls).toHaveLength(0);
   });
   it("refuses unsupported avoidances without calling the provider", async () => {
     const r = await post({ ...trip, avoid: ["toll"] });

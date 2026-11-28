@@ -4,15 +4,21 @@
 # Secrets are NOT stored here: NEXORA_GEOCODER_KEY is entered in the Render dashboard (sync: false).
 # The API has no accounts or sessions (SEC-002): JWT_SECRET, DATABASE_URL and OAUTH_SERVER_URL
 # are unused and can be deleted from the dashboard.
+# OPS-005: NODE_ENV=production applies at build time too, and pnpm then skips devDependencies
+# (esbuild builds dist/). --prod=false installs them regardless.
+# Quota knobs (optional, dashboard only; code defaults shown): NEXORA_GEOCODER_DAILY_BUDGET=4000
+# (LocationIQ free plan is 5,000/day; "off" disables), NEXORA_SEARCH_CACHE_TTL_S=86400 (max
+# 172800, the free plan's 48 h caching limit; 0 disables), NEXORA_SEARCH_PER_MINUTE=15,
+# NEXORA_ROUTES_PER_MINUTE=15, NEXORA_PROVIDER_MAX_QUEUED=5, NEXORA_TRUST_PROXY=1.
 services:
   - type: web
     name: nexora-api
     runtime: node
     plan: free
     region: frankfurt
-    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm build
+    buildCommand: corepack enable && pnpm install --frozen-lockfile --prod=false && pnpm build
     startCommand: node dist/index.js
-    healthCheckPath: /api/nexora/capabilities
+    healthCheckPath: /api/health
     envVars:
       - key: NODE_ENV
         value: production
@@ -21,4 +27,6 @@ services:
       - key: NEXORA_GEOCODER_PROVIDER
         value: locationiq
       - key: NEXORA_GEOCODER_KEY
+        sync: false
+      - key: NEXORA_TFL_APP_KEY
         sync: false
