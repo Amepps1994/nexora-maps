@@ -2,13 +2,16 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   ApiError,
   CAPABILITY_RETRY_DELAYS_MS,
+  IDLE_SLEEP_MS,
   REROUTE_TIMEOUT_MS,
+  REROUTE_WAKING_TIMEOUT_MS,
   ROUTE_TIMEOUT_MS,
   WAKE_TIMEOUT_MS,
   createApiClient,
   friendlyApiError,
   isAllowedMapNavigation,
   mapLoadTimers,
+  rerouteTimeoutFor,
   timeoutFor,
 } from "../lib/nexora-api-core";
 
@@ -324,6 +327,202 @@ describe("warm-up", () => {
     expect(api.getState()).toBe("unreachable");
     void api.warmUp();
     expect(api.getState()).toBe("waking");
+  });
+});
+
+describe("waking after a downgrade or a long background (BUG-013)", () => {
+  /**
+   * Like Render's free plan: while asleep, requests are held (or time out) and are
+   * answered once the dyno has booted. `wake()` answers everything still held.
+   */
+  function sleepyServer() {
+    const held: (() => void)[] = [];
+    const server = {
+      asleep: false,
+      health: 0,
+      wake() {
+        server.asleep = false;
+        held.splice(0).forEach((answer) => answer());
+      },
+    };
+    const fetch = vi.fn((url: string, init?: RequestInit) => {
+      if (url.endsWith("/api/health")) server.health++;
+      if (!server.asleep) return Promise.resolve(jsonResponse({ ok: true }));
+      return new Promise<Response>((resolve, reject) => {
+        held.push(() => resolve(jsonResponse({ ok: true })));
+        init?.signal?.addEventListener("abort", () => {
+          const e = new Error("Aborted");
+          e.name = "AbortError";
+          reject(e);
+        });
+      });
+    });
+    return { server, fetch: fetch as unknown as typeof globalThis.fetch };
+  }
+
+  it("a downgrade to waking polls /api/health and ends ready once the server answers", async () => {
+    vi.useFakeTimers();
+    const { server, fetch } = sleepyServer();
+    const api = createApiClient({ baseUrl: () => BASE, fetch });
+    await api.json("/api/nexora/capabilities");
+    expect(api.getState()).toBe("ready");
+    server.asleep = true;
+    const failed = api
+      .json("/api/nexora/routes", { body: {}, timeoutMs: 1000 })
+      .then(unexpected, asApiError);
+    await vi.advanceTimersByTimeAsync(1000);
+    expect((await failed).kind).toBe("timeout");
+    expect(api.getState()).toBe("waking");
+    // The warm-up started by itself: no user action needed.
+    expect(server.health).toBe(1);
+    // Render finishes booting 20 s later and answers the held health check.
+    await vi.advanceTimersByTimeAsync(20_000);
+    server.wake();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(api.getState()).toBe("ready");
+  });
+
+  it("a downgrade that never recovers ends unreachable within 60 s, not stuck on waking", async () => {
+    vi.useFakeTimers();
+    const { server, fetch } = sleepyServer();
+    const api = createApiClient({ baseUrl: () => BASE, fetch });
+    await api.json("/api/health");
+    server.asleep = true;
+    const failed = api.json("/x", { timeoutMs: 1000 }).catch(() => {});
+    await vi.advanceTimersByTimeAsync(1000);
+    await failed;
+    expect(api.getState()).toBe("waking");
+    await vi.advanceTimersByTimeAsync(WAKE_TIMEOUT_MS + 10);
+    expect(api.getState()).toBe("unreachable");
+  });
+
+  it("an offline failure on an awake server also starts a warm-up", async () => {
+    vi.useFakeTimers();
+    let refuse = false;
+    let health = 0;
+    const fetch = vi.fn((url: string) => {
+      if (url.endsWith("/api/health")) health++;
+      return refuse
+        ? Promise.reject(new TypeError("Network request failed"))
+        : Promise.resolve(jsonResponse({ ok: true }));
+    });
+    const api = createApiClient({
+      baseUrl: () => BASE,
+      fetch: fetch as unknown as typeof globalThis.fetch,
+    });
+    await api.json("/api/nexora/capabilities");
+    refuse = true;
+    await api.json("/x").catch(() => {});
+    expect(api.getState()).toBe("waking");
+    expect(health).toBe(1);
+    refuse = false;
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(api.getState()).toBe("ready");
+  });
+
+  it("after 20 min in the background, resume marks waking, warms up, and the next route waits 60 s", async () => {
+    vi.useFakeTimers();
+    const { server, fetch } = sleepyServer();
+    const api = createApiClient({ baseUrl: () => BASE, fetch });
+    await api.json("/api/nexora/capabilities");
+    expect(api.getState()).toBe("ready");
+    // App goes to the background; Render sleeps after 15 min.
+    server.asleep = true;
+    vi.setSystemTime(Date.now() + 20 * 60_000);
+    expect(api.checkIdle()).toBe("waking");
+    expect(server.health).toBe(1);
+    // The user plans a route; the server takes 50 s to boot.
+    setTimeout(() => server.wake(), 50_000);
+    const route = api.json<{ ok: boolean }>("/api/nexora/routes", {
+      body: {},
+      awakeTimeoutMs: ROUTE_TIMEOUT_MS,
+    });
+    let outcome: string | null = null;
+    void route.then(
+      () => (outcome = "ok"),
+      (e) => (outcome = (e as ApiError).kind),
+    );
+    // An 18 s timeout would already have failed here.
+    await vi.advanceTimersByTimeAsync(ROUTE_TIMEOUT_MS + 1);
+    expect(outcome).toBeNull();
+    await vi.advanceTimersByTimeAsync(50_000 - ROUTE_TIMEOUT_MS);
+    expect(outcome).toBe("ok");
+    expect(api.getState()).toBe("ready");
+  });
+
+  it("the first request after a long idle uses the waking timeout even without a resume event", async () => {
+    vi.useFakeTimers();
+    const { server, fetch } = sleepyServer();
+    const api = createApiClient({ baseUrl: () => BASE, fetch });
+    await api.json("/api/nexora/capabilities");
+    expect(api.getState()).toBe("ready");
+    server.asleep = true;
+    vi.setSystemTime(Date.now() + IDLE_SLEEP_MS + 60_000);
+    const search = api.json("/api/nexora/search?q=abc", {
+      awakeTimeoutMs: 12_000,
+    });
+    expect(api.getState()).toBe("waking");
+    setTimeout(() => server.wake(), 40_000);
+    await vi.advanceTimersByTimeAsync(40_000);
+    await expect(search).resolves.toEqual({ ok: true });
+    expect(api.getState()).toBe("ready");
+  });
+
+  it("a recent reply keeps the server ready on resume", async () => {
+    vi.useFakeTimers();
+    const { server, fetch } = sleepyServer();
+    const api = createApiClient({ baseUrl: () => BASE, fetch });
+    await api.json("/api/health");
+    vi.setSystemTime(Date.now() + 5 * 60_000);
+    expect(api.checkIdle()).toBe("ready");
+    expect(server.health).toBe(1);
+  });
+
+  it("reroutes wait 10 s on an awake server and at most 30 s while waking", () => {
+    expect(rerouteTimeoutFor("ready")).toBe(REROUTE_TIMEOUT_MS);
+    expect(rerouteTimeoutFor("waking")).toBe(REROUTE_WAKING_TIMEOUT_MS);
+    expect(rerouteTimeoutFor("unreachable")).toBe(REROUTE_WAKING_TIMEOUT_MS);
+    expect(REROUTE_WAKING_TIMEOUT_MS).toBeLessThan(WAKE_TIMEOUT_MS);
+  });
+
+  it("awakeTimeoutMs is capped by maxTimeoutMs", async () => {
+    vi.useFakeTimers();
+    const fetch = hangingFetch();
+    const api = createApiClient({
+      baseUrl: () => BASE,
+      fetch: fetch as typeof globalThis.fetch,
+    });
+    const caught = api
+      .json("/x", { awakeTimeoutMs: 10_000, maxTimeoutMs: 25_000 })
+      .then(unexpected, asApiError);
+    await vi.advanceTimersByTimeAsync(25_000);
+    expect((await caught).message).toMatch(/25 s/);
+  });
+
+  it("a traffic-style JSON error keeps its body, so 'disabled' can be told apart", async () => {
+    const fetch = vi.fn(() =>
+      Promise.resolve(jsonResponse({ status: "disabled", error: "off" }, 503)),
+    );
+    const api = createApiClient({
+      baseUrl: () => BASE,
+      fetch: fetch as unknown as typeof globalThis.fetch,
+    });
+    const error = await api.json("/api/nexora/traffic").then(unexpected, asApiError);
+    expect(error.kind).toBe("http");
+    expect(error.body).toEqual({ status: "disabled", error: "off" });
+  });
+
+  it("a successful traffic fetch marks the server ready", async () => {
+    const fetch = vi.fn(() =>
+      Promise.resolve(jsonResponse({ status: "live", disruptions: [] })),
+    );
+    const api = createApiClient({
+      baseUrl: () => BASE,
+      fetch: fetch as unknown as typeof globalThis.fetch,
+    });
+    expect(api.getState()).toBe("waking");
+    await api.json("/api/nexora/traffic");
+    expect(api.getState()).toBe("ready");
   });
 });
 

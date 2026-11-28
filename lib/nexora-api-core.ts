@@ -25,16 +25,19 @@ export class ApiError extends Error {
   readonly status?: number;
   /** The server's own `error` text, when it sent one. */
   readonly serverMessage?: string;
+  /** The parsed JSON body of an HTTP error, when the server sent one. */
+  readonly body?: unknown;
   constructor(
     kind: ApiErrorKind,
     message: string,
-    opts: { status?: number; serverMessage?: string } = {},
+    opts: { status?: number; serverMessage?: string; body?: unknown } = {},
   ) {
     super(message);
     this.name = "ApiError";
     this.kind = kind;
     this.status = opts.status;
     this.serverMessage = opts.serverMessage;
+    this.body = opts.body;
   }
 }
 
@@ -44,6 +47,17 @@ export const WAKE_TIMEOUT_MS = 60_000;
 export const ROUTE_TIMEOUT_MS = 18_000;
 /** A live reroute must answer fast or the driver is left without guidance. */
 export const REROUTE_TIMEOUT_MS = 10_000;
+/**
+ * Most a live reroute waits while the server may be asleep (BUG-013). A full 60 s
+ * wake would leave the driver in "rerouting" too long; 30 s gives a server that is
+ * already part-way through waking a chance without hanging guidance for a minute.
+ */
+export const REROUTE_WAKING_TIMEOUT_MS = 30_000;
+/**
+ * Render's free plan sleeps after 15 minutes without a request. After 14 minutes
+ * with no reply from the server, assume it may be asleep again (BUG-013).
+ */
+export const IDLE_SLEEP_MS = 14 * 60_000;
 /** Place search once the server is awake. */
 export const SEARCH_TIMEOUT_MS = 12_000;
 /** Backoff between capability fetch attempts (2 s, 5 s, 10 s, 20 s). */
@@ -56,6 +70,14 @@ export const WARM_UP_RETRY_MS = 2_000;
 /** Pick a timeout: generous while the server may be asleep, tight once it is awake. */
 export function timeoutFor(state: ServerState, awakeMs: number) {
   return state === "ready" ? awakeMs : Math.max(awakeMs, WAKE_TIMEOUT_MS);
+}
+
+/** Live reroute timeout: 10 s when awake, capped at 30 s while waking (BUG-013). */
+export function rerouteTimeoutFor(state: ServerState) {
+  return Math.min(
+    timeoutFor(state, REROUTE_TIMEOUT_MS),
+    REROUTE_WAKING_TIMEOUT_MS,
+  );
 }
 
 /**
@@ -96,8 +118,17 @@ export type RequestOptions = {
   method?: "GET" | "POST";
   /** Sent as JSON. */
   body?: unknown;
-  /** Defaults to `timeoutFor(state, 15 s)`. */
+  /** A fixed timeout. Prefer `awakeTimeoutMs`, which follows the server state. */
   timeoutMs?: number;
+  /**
+   * Timeout once the server is awake. While it may be asleep this widens to the
+   * wake timeout (`timeoutFor`). The state is read when each attempt starts, after
+   * the idle check, so a request made after a long background waits long enough.
+   * Defaults to 15 s. Ignored when `timeoutMs` is set.
+   */
+  awakeTimeoutMs?: number;
+  /** Upper bound on the computed timeout (e.g. the reroute budget). */
+  maxTimeoutMs?: number;
   /** Caller cancellation; aborting rejects with kind "aborted". */
   signal?: AbortSignal;
   /** Extra attempts after a timeout, offline or 5xx failure. Default 0. */
@@ -147,6 +178,8 @@ export function createApiClient(deps: Deps) {
   let state: ServerState = "waking";
   const listeners = new Set<() => void>();
   let warming: Promise<boolean> | null = null;
+  /** When the server last answered (any reply from the app itself), or null. */
+  let lastContactAt: number | null = null;
 
   /** Read through a function: TypeScript would otherwise narrow `state` across awaits. */
   const current = () => state;
@@ -162,7 +195,12 @@ export function createApiClient(deps: Deps) {
       throw new ApiError("aborted", "Request cancelled.");
     const controller = new AbortController();
     let timedOut = false;
-    const timeoutMs = opts.timeoutMs ?? timeoutFor(state, 15_000);
+    const timeoutMs =
+      opts.timeoutMs ??
+      Math.min(
+        timeoutFor(state, opts.awakeTimeoutMs ?? 15_000),
+        opts.maxTimeoutMs ?? Infinity,
+      );
     const timer = setTimeout(() => {
       timedOut = true;
       controller.abort();
@@ -213,7 +251,10 @@ export function createApiClient(deps: Deps) {
             });
       }
       // Any reply from the app itself, even an error, means the server is awake.
-      if (response.status < 500) setState("ready");
+      if (response.status < 500) {
+        lastContactAt = now();
+        setState("ready");
+      }
       if (!response.ok) {
         const serverMessage =
           data && typeof (data as { error?: unknown }).error === "string"
@@ -222,6 +263,7 @@ export function createApiClient(deps: Deps) {
         throw new ApiError("http", serverMessage ?? `HTTP ${response.status}`, {
           status: response.status,
           serverMessage,
+          body: data,
         });
       }
       return data as T;
@@ -231,10 +273,35 @@ export function createApiClient(deps: Deps) {
     }
   }
 
+  /** The server went quiet or stopped answering: treat it as asleep and wake it. */
+  function downgrade() {
+    if (state !== "ready") return;
+    setState("waking");
+    warming = null;
+    // Without this the state stayed "waking" until the user retried (BUG-013).
+    void warmUp();
+  }
+
+  /**
+   * If the server has not answered for longer than Render's idle sleep, mark it
+   * waking and start a warm-up. Called before every request and when the app
+   * comes back to the foreground. Returns the state after the check.
+   */
+  function checkIdle(): ServerState {
+    if (
+      state === "ready" &&
+      lastContactAt !== null &&
+      now() - lastContactAt > IDLE_SLEEP_MS
+    )
+      downgrade();
+    return state;
+  }
+
   async function json<T = unknown>(
     path: string,
     opts: RequestOptions = {},
   ): Promise<T> {
+    checkIdle();
     const retries = opts.retries ?? 0;
     const delays = opts.retryDelaysMs ?? CAPABILITY_RETRY_DELAYS_MS;
     for (let attempt = 0; ; attempt++) {
@@ -245,12 +312,9 @@ export function createApiClient(deps: Deps) {
         // gone back to sleep (the app was in the background for 15+ minutes).
         if (
           error instanceof ApiError &&
-          (error.kind === "timeout" || error.kind === "offline") &&
-          state === "ready"
-        ) {
-          setState("waking");
-          warming = null;
-        }
+          (error.kind === "timeout" || error.kind === "offline")
+        )
+          downgrade();
         if (attempt >= retries || !isRetryable(error)) throw error;
         await sleep(delays[Math.min(attempt, delays.length - 1)], opts.signal);
       }
@@ -273,9 +337,14 @@ export function createApiClient(deps: Deps) {
         try {
           await once("/api/health", { timeoutMs: left });
           setState("ready");
+          warming = null;
           return true;
         } catch {
-          if (current() === "ready") return true; // another request got through meanwhile
+          if (current() === "ready") {
+            // another request got through meanwhile
+            warming = null;
+            return true;
+          }
           const wait = Math.min(WARM_UP_RETRY_MS, deadline - now());
           if (wait <= 0) break;
           await sleep(wait);
@@ -291,6 +360,7 @@ export function createApiClient(deps: Deps) {
   return {
     json,
     warmUp,
+    checkIdle,
     getState: () => state,
     subscribe(listener: () => void) {
       listeners.add(listener);
@@ -303,7 +373,6 @@ export function createApiClient(deps: Deps) {
       return json<T>("/api/nexora/capabilities", {
         signal,
         retries: CAPABILITY_RETRY_DELAYS_MS.length,
-        timeoutMs: timeoutFor(state, 15_000),
       });
     },
   };

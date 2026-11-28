@@ -6,13 +6,15 @@ import {
   api,
   ApiError,
   friendlyApiError,
-  timeoutFor,
   useServerState,
-  REROUTE_TIMEOUT_MS,
   ROUTE_TIMEOUT_MS,
   SEARCH_TIMEOUT_MS,
 } from "@/lib/nexora-api";
-import { remainingStops } from "@/shared/nexora/reroute";
+import {
+  createLatestOnly,
+  createRerouteController,
+  idleCarGuidance,
+} from "@/lib/nexora-controllers";
 import { buildCarGuidance } from "@/shared/nexora/car-guidance";
 import { onCarCommand, publishCarGuidance } from "@/lib/car/guidance-bus";
 import type { Coord, Place, Route, Incident } from "@/shared/nexora/domain";
@@ -155,17 +157,20 @@ export function useNexora() {
     capabilitiesLoading.current = load;
     return load;
   }
-  const searchGeneration = useRef(0);
-  const searchAbort = useRef<AbortController | null>(null);
+  /** Only the newest live search may report back (BUG-006). */
+  const searchRef = useRef<ReturnType<typeof createLatestOnly> | null>(null);
+  searchRef.current ??= createLatestOnly();
+  const search = searchRef.current;
   /** Drop any in-flight live search so a slow reply cannot overwrite newer state. */
   function cancelSearch() {
-    searchGeneration.current += 1;
-    searchAbort.current?.abort();
-    searchAbort.current = null;
+    search.cancel();
   }
-  /** Stops of the current trip already dropped by earlier reroutes (BUG-002). */
-  const visitedStops = useRef(0);
-  const pendingVisitedStops = useRef(0);
+  /** Reroute requests and the visited-stop offset of the current trip (BUG-002). */
+  const rerouteRef = useRef<ReturnType<
+    typeof createRerouteController<Place, Route>
+  > | null>(null);
+  rerouteRef.current ??= createRerouteController<Place, Route>(api);
+  const reroute = rerouteRef.current;
   const tripRecorded = useRef(false);
   const hydratedRef = useRef(false);
   useEffect(() => {
@@ -222,28 +227,18 @@ export function useNexora() {
     mode,
     routeMode: prefs.routeMode,
     requestReroute: async (from, passed) => {
-      // `passed` counts stops on the route being followed, which after a reroute no
-      // longer includes stops visited earlier, so keep a cumulative offset (BUG-002).
-      const { remaining, nextOffset } = remainingStops(stops, visitedStops.current, passed);
-      pendingVisitedStops.current = nextOffset;
-      const data = await api.json<{ routes?: Route[] }>("/api/nexora/routes", {
-        body: {
-          origin: from,
-          destination: destination?.coordinate,
-          mode,
-          ...(remaining.length
-            ? { stops: remaining.map((stop) => stop.coordinate) }
-            : {}),
-          ...(avoid.length && mode === "driving" ? { avoid } : {}),
-        },
-        // A hung reroute must not leave the driver in "rerouting" (BUG-007).
-        timeoutMs: REROUTE_TIMEOUT_MS,
-      });
-      if (!data.routes?.length) return null;
-      return scoreRoutes(data.routes, preference)[0] ?? null;
+      // Visited-stop offset (BUG-002) and the state-aware timeout (BUG-007, BUG-013)
+      // live in lib/nexora-controllers.ts, where they are tested.
+      const candidates = await reroute.request(
+        { destination: destination?.coordinate, stops, mode, avoid },
+        from,
+        passed,
+      );
+      if (!candidates.length) return null;
+      return scoreRoutes(candidates, preference)[0] ?? null;
     },
     applyReroute: (next) => {
-      visitedStops.current = pendingVisitedStops.current;
+      reroute.apply();
       setRoutes([next]);
       setSelectedId(next.id);
     },
@@ -426,37 +421,32 @@ export function useNexora() {
   }
   // A new query makes any in-flight search stale (BUG-006).
   useEffect(() => {
-    if (!searchAbort.current) return;
+    if (!search.inFlight()) return;
     cancelSearch();
     setBusy(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query]);
   async function liveSearch() {
     if (moving) return;
-    cancelSearch();
-    const generation = searchGeneration.current;
-    const controller = new AbortController();
-    searchAbort.current = controller;
     setBusy(true);
     setError("");
-    try {
-      const d = await api.json<{ results: Place[] }>(
-        `/api/nexora/search?q=${encodeURIComponent(query)}`,
-        {
-          signal: controller.signal,
-          timeoutMs: timeoutFor(api.getState(), SEARCH_TIMEOUT_MS),
-        },
-      );
-      if (generation !== searchGeneration.current) return;
-      setSearchResults(Array.isArray(d.results) ? d.results : []);
-    } catch (e) {
-      if (generation !== searchGeneration.current) return;
-      setError(friendlyApiError(e, api.getState(), "Search failed. Try again."));
-    } finally {
-      if (generation === searchGeneration.current) {
-        searchAbort.current = null;
-        setBusy(false);
-      }
-    }
+    await search.run(
+      (signal) =>
+        api.json<{ results: Place[] }>(
+          `/api/nexora/search?q=${encodeURIComponent(query)}`,
+          // Widens to the wake timeout if the server may be asleep (BUG-013).
+          { signal, awakeTimeoutMs: SEARCH_TIMEOUT_MS },
+        ),
+      {
+        onResult: (d) =>
+          setSearchResults(Array.isArray(d?.results) ? d.results : []),
+        onError: (e) =>
+          setError(
+            friendlyApiError(e, api.getState(), "Search failed. Try again."),
+          ),
+        onSettled: () => setBusy(false),
+      },
+    );
   }
   async function calculate(useFixture = false, selectedMode = mode) {
     if (!destination || active || !online) {
@@ -502,7 +492,7 @@ export function useNexora() {
               : {}),
             ...(avoid.length && selectedMode === "driving" ? { avoid } : {}),
           },
-          timeoutMs: timeoutFor(api.getState(), ROUTE_TIMEOUT_MS),
+          awakeTimeoutMs: ROUTE_TIMEOUT_MS,
         });
         if (generation !== requestGeneration.current) return;
         const next = Array.isArray(data.routes) ? data.routes : [];
@@ -532,8 +522,7 @@ export function useNexora() {
       }
     } else live.stop();
     setGuidanceSource(source);
-    visitedStops.current = 0;
-    pendingVisitedStops.current = 0;
+    reroute.reset();
     setTripSeq((n) => n + 1);
     tripRecorded.current = false;
     setProgress(0);
@@ -711,7 +700,7 @@ export function useNexora() {
             destination: [-0.1234, 51.5113],
             mode,
           },
-          timeoutMs: timeoutFor(api.getState(), ROUTE_TIMEOUT_MS),
+          awakeTimeoutMs: ROUTE_TIMEOUT_MS,
         });
         const ms = Date.now() - started;
         const checkedAt = new Date().toISOString();
@@ -936,6 +925,14 @@ export function useNexora() {
       }),
     );
   }, [state, route, step, progress, paused, muted, prefs.metric, destination, position, guidanceSource]);
+  // On unmount (a render crash caught by the ErrorBoundary, or teardown) the trip
+  // stops with this screen, so the car and lock-screen surfaces must stop too (BUG-014).
+  const carPrefs = useRef({ muted, metric: prefs.metric });
+  carPrefs.current = { muted, metric: prefs.metric };
+  useEffect(
+    () => () => publishCarGuidance(idleCarGuidance(carPrefs.current)),
+    [],
+  );
   return {
     prefs,
     setPrefs,
