@@ -1,23 +1,101 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   A11Y_COLORS,
   backAction,
+  backgroundCardContent,
   boundaryState,
   contrastRatio,
   currentStepIndex,
+  endButtonAction,
   isDemoOrigin,
+  mayAskNotifications,
   needsLiveAck,
   nextAnnouncement,
+  nextStepAnnouncement,
   originNotice,
+  panelServerNotice,
   previousPanel,
+  releaseId,
   serverBanner,
   shouldAutoOpenOnboarding,
   stepAnnouncement,
+  stepIdentity,
   stepItems,
   type BackState,
 } from "../components/nexora/screen-logic";
+
+// ui.tsx and the lock-screen card are React Native modules; stub the native
+// pieces so their behaviour can be checked in Node.
+const rn = vi.hoisted(() => {
+  let appListener: ((s: string) => void) | null = null;
+  let guidanceListener: ((s: unknown) => void) | null = null;
+  let granted = false;
+  const state = { current: "active" };
+  return {
+    state,
+    notifications: {
+      getPermissionsAsync: vi.fn(async () => ({ granted, canAskAgain: true })),
+      requestPermissionsAsync: vi.fn(async () => {
+        granted = true;
+        return { granted: true };
+      }),
+      setNotificationChannelAsync: vi.fn(async () => undefined),
+      scheduleNotificationAsync: vi.fn(
+        async (_req: { content: { title: string } }) => "id",
+      ),
+      dismissNotificationAsync: vi.fn(async () => undefined),
+      AndroidImportance: { LOW: 2 },
+      AndroidNotificationVisibility: { PUBLIC: 1 },
+      AndroidNotificationPriority: { LOW: "low" },
+    },
+    onAppState: (fn: (s: string) => void) => {
+      appListener = fn;
+    },
+    onGuidance: (fn: (s: unknown) => void) => {
+      guidanceListener = fn;
+      return () => undefined;
+    },
+    setAppState: (s: string) => {
+      state.current = s;
+      appListener?.(s);
+    },
+    publish: (s: unknown) => guidanceListener?.(s),
+  };
+});
+vi.mock("react-native", () => ({
+  Pressable: () => null,
+  Text: () => null,
+  View: () => null,
+  StyleSheet: { create: <T>(x: T) => x },
+  Platform: { OS: "android" },
+  AppState: {
+    get currentState() {
+      return rn.state.current;
+    },
+    addEventListener: (_: string, fn: (s: string) => void) => {
+      rn.onAppState(fn);
+      return { remove: () => undefined };
+    },
+  },
+}));
+vi.mock("expo-notifications", () => rn.notifications);
+vi.mock("../lib/car/guidance-bus", () => ({
+  subscribeCarGuidance: (fn: (s: unknown) => void) => rn.onGuidance(fn),
+}));
+// The test runner does not resolve the "@/" alias inside app modules.
+vi.mock(
+  "@/shared/nexora/car-guidance",
+  () => import("../shared/nexora/car-guidance"),
+);
+vi.mock(
+  "@/components/nexora/screen-logic",
+  () => import("../components/nexora/screen-logic"),
+);
+vi.mock("@expo/vector-icons", () => ({ Feather: () => null }));
+vi.mock("react-native-svg", () => ({ default: () => null, Path: () => null }));
+import { palette } from "../components/nexora/ui";
 import { DEMO_PLACES } from "../shared/nexora/fixtures";
 import type { Route, Step } from "../shared/nexora/domain";
 
@@ -113,6 +191,24 @@ describe("live GPS acknowledgement (UX-003)", () => {
     expect(needsLiveAck(undefined, "1.0.0")).toBe(true);
     expect(needsLiveAck("1.0.0", "1.0.0")).toBe(false);
     expect(needsLiveAck("1.0.0", "1.1.0")).toBe(true);
+    expect(needsLiveAck("", "1.0.0")).toBe(true);
+  });
+
+  it("keys on the release, so a new build asks again even at the same version", () => {
+    expect(releaseId({ version: "1.0.0" })).toBe("1.0.0");
+    expect(releaseId({ version: "1.0.0", build: 7 })).toBe("1.0.0+b7");
+    expect(releaseId({ version: "1.0.0", build: "8", update: "abc" })).toBe(
+      "1.0.0+b8+uabc",
+    );
+    expect(releaseId({ version: null, build: null })).toBe("0");
+    const first = releaseId({ version: "1.0.0", build: 7 });
+    expect(needsLiveAck(first, first)).toBe(false);
+    expect(needsLiveAck(first, releaseId({ version: "1.0.0", build: 8 }))).toBe(
+      true,
+    );
+    expect(needsLiveAck(first, releaseId({ version: "1.0.1", build: 7 }))).toBe(
+      true,
+    );
   });
 });
 
@@ -161,7 +257,7 @@ describe("step list (FEAT-001)", () => {
       "current",
       "next",
     ]);
-    expect(items[2].label.startsWith("Current step. Step 3 of 4.")).toBe(true);
+    expect(items[2].label.startsWith("Next turn. Step 3 of 4.")).toBe(true);
   });
 
   it("handles no route and blank instructions", () => {
@@ -192,6 +288,173 @@ describe("screen-reader announcements (A11Y-001)", () => {
     ).toBeNull();
     expect(nextAnnouncement("a", "b", true)).toBeNull();
     expect(nextAnnouncement("a", "", false)).toBeNull();
+  });
+});
+
+describe("one announcement per step (A11Y-006)", () => {
+  // A drive where the hook hands back a fresh step object with a shorter
+  // distance on every GPS fix or simulation tick.
+  const ticks = route.steps.flatMap((st) =>
+    st.distanceM > 0
+      ? [1, 0.75, 0.5, 0.25, 0.05].map((f) => ({
+          ...st,
+          distanceM: Math.round(st.distanceM * f),
+        }))
+      : [{ ...st }, { ...st }],
+  );
+
+  function drive(voiceOn: boolean) {
+    let last = "";
+    const said: string[] = [];
+    for (const st of ticks) {
+      const key = stepIdentity(route, st);
+      const say = nextStepAnnouncement(
+        last,
+        key,
+        stepAnnouncement(st, metres),
+        voiceOn,
+      );
+      last = key;
+      if (say) said.push(say);
+    }
+    return said;
+  }
+
+  it("announces each step once over a ticking drive", () => {
+    const said = drive(false);
+    expect(said).toHaveLength(route.steps.length);
+    expect(said[1]).toBe("In 800 m, turn left onto Euston Road");
+    // The text-keyed rule announced on every distance change.
+    let last = "";
+    let textKeyed = 0;
+    for (const st of ticks) {
+      const text = stepAnnouncement(st, metres);
+      if (nextAnnouncement(last, text, false)) textKeyed++;
+      last = text;
+    }
+    expect(textKeyed).toBeGreaterThan(route.steps.length);
+  });
+
+  it("stays quiet with voice on and keys on route id plus index", () => {
+    expect(drive(true)).toEqual([]);
+    expect(stepIdentity(route, { ...route.steps[2], distanceM: 5 })).toBe(
+      "r1#2",
+    );
+    expect(stepIdentity({ ...route, id: "r2" }, route.steps[2])).toBe("r2#2");
+    expect(stepIdentity(null, route.steps[0])).toBe("");
+    expect(stepIdentity(route, null)).toBe("");
+    expect(nextStepAnnouncement("r1#1", "r1#1", "x", false)).toBeNull();
+    expect(nextStepAnnouncement("r1#1", "r1#2", "", false)).toBeNull();
+    expect(nextStepAnnouncement("r1#1", "", "x", false)).toBeNull();
+  });
+
+  it("announces the same step again on a new trip", () => {
+    // Guidance ends (key becomes empty) and restarts on the same route.
+    expect(nextStepAnnouncement("", "r1#0", "Head north", false)).toBe(
+      "Head north",
+    );
+  });
+});
+
+describe("ending guidance (UX-005)", () => {
+  it("X and back both ask before ending live guidance", () => {
+    expect(endButtonAction("live")).toBe("confirm");
+    expect(backAction({ ...idle, active: true })).toEqual({
+      kind: "confirm-end",
+    });
+  });
+  it("X ends a simulation straight away", () => {
+    expect(endButtonAction("simulation")).toBe("end");
+    expect(endButtonAction(undefined)).toBe("end");
+  });
+});
+
+describe("notification prompt timing (UX-010)", () => {
+  it("asks only before guidance, never from a guidance update", () => {
+    expect(mayAskNotifications("onboarding", false)).toBe(true);
+    expect(mayAskNotifications("live-ack", false)).toBe(true);
+    expect(mayAskNotifications("live-start", false)).toBe(true);
+    expect(mayAskNotifications("guidance-update", false)).toBe(false);
+    for (const p of ["onboarding", "live-ack", "live-start"] as const)
+      expect(mayAskNotifications(p, true)).toBe(false);
+  });
+
+  it("labels a backgrounded live card as paused", () => {
+    const content = { title: "200 m · Turn left", body: "3 km · 8 min" };
+    expect(
+      backgroundCardContent(
+        { active: true, source: "live", phase: "guiding" },
+        content,
+      ),
+    ).toEqual({
+      title: "Guidance paused. Open NEXORA to continue.",
+      body: "Last instruction: 200 m · Turn left",
+    });
+    expect(
+      backgroundCardContent(
+        { active: true, source: "simulation", phase: "guiding" },
+        content,
+      ),
+    ).toBe(content);
+    expect(
+      backgroundCardContent(
+        { active: false, source: "live", phase: "arrived" },
+        content,
+      ),
+    ).toBe(content);
+  });
+
+  it("the lock-screen card never asks for permission from a guidance update", async () => {
+    const { startLockScreenGuidance, requestGuidanceNotifications } =
+      await import("../lib/car/lock-screen-guidance");
+    startLockScreenGuidance();
+    const snap = (over: Record<string, unknown> = {}) => ({
+      active: true,
+      phase: "guiding",
+      source: "live",
+      simulated: false,
+      tripId: "t1",
+      destinationName: "Tate Modern",
+      destinationCoordinate: null,
+      next: { instruction: "Turn left onto Euston Road" },
+      distanceToNextM: 200,
+      remainingDistanceM: 3000,
+      remainingDurationS: 480,
+      etaMs: null,
+      muted: true,
+      metric: true,
+      statusLine: "Unverified for road use",
+      geometry: [],
+      position: null,
+      ...over,
+    });
+    // Guidance starts and updates in the foreground, then the app is backgrounded.
+    rn.publish(snap());
+    rn.publish(snap({ distanceToNextM: 150 }));
+    rn.setAppState("background");
+    rn.publish(snap({ distanceToNextM: 100 }));
+    await new Promise((r) => setTimeout(r, 0));
+    expect(rn.notifications.requestPermissionsAsync).not.toHaveBeenCalled();
+    // Not granted yet, so nothing was shown either.
+    expect(rn.notifications.scheduleNotificationAsync).not.toHaveBeenCalled();
+
+    // Asked from the live acknowledgement, before guidance starts.
+    rn.setAppState("active");
+    rn.publish(snap({ active: false, phase: "idle" }));
+    expect(await requestGuidanceNotifications("live-ack", true)).toBe(false);
+    expect(rn.notifications.requestPermissionsAsync).not.toHaveBeenCalled();
+    expect(await requestGuidanceNotifications("live-ack", false)).toBe(true);
+    expect(rn.notifications.requestPermissionsAsync).toHaveBeenCalledTimes(1);
+
+    rn.publish(snap());
+    rn.setAppState("background");
+    await new Promise((r) => setTimeout(r, 0));
+    const shown =
+      rn.notifications.scheduleNotificationAsync.mock.calls.at(-1)?.[0];
+    expect(shown?.content.title).toBe(
+      "Guidance paused. Open NEXORA to continue.",
+    );
+    expect(rn.notifications.requestPermissionsAsync).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -254,17 +517,37 @@ describe("root error boundary (OPS-002)", () => {
 
 describe("flagged colours are gone from the screens", () => {
   const read = (p: string) => readFileSync(join(__dirname, "..", p), "utf8");
-  it("ui palette uses the accessible muted colour", () => {
-    expect(read("components/nexora/ui.tsx")).toContain(
-      `muted: "${A11Y_COLORS.light.muted}"`,
-    );
+  it("ui palette text colours pass contrast on its surfaces", () => {
+    expect(palette.muted).toBe(A11Y_COLORS.light.muted);
+    for (const bg of [palette.surface, palette.background])
+      for (const fg of [palette.muted, palette.amber, palette.ink])
+        expect(contrastRatio(fg, bg)).toBeGreaterThanOrEqual(4.5);
   });
+  // Guard against the failing literals coming back in inline styles.
   it("Panels and NexoraApp no longer use the failing ring, track or label colours", () => {
     const src =
       read("components/nexora/Panels.tsx") +
       read("components/nexora/NexoraApp.tsx");
     for (const bad of ["#AABBB2", "#CBD5D1", "#CAD7D0", 'color: "#9B6500"'])
       expect(src).not.toContain(bad);
+  });
+});
+
+describe("server notice inside sheets (UX-009)", () => {
+  it("shows while waking or unreachable, never when ready or offline", () => {
+    expect(panelServerNotice("ready", true)).toBeNull();
+    expect(panelServerNotice(undefined, false)).toBeNull();
+    expect(panelServerNotice("waking", true, false)).toBeNull();
+    expect(panelServerNotice("waking", false)).toMatchObject({
+      warning: false,
+    });
+    expect(panelServerNotice("waking", false)?.text).toContain("first search");
+    expect(panelServerNotice("waking", true)?.text).toContain(
+      "this can take up to a minute",
+    );
+    expect(panelServerNotice("unreachable", false)).toMatchObject({
+      warning: true,
+    });
   });
 });
 

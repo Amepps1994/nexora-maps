@@ -6,6 +6,7 @@
  */
 import type { Panel } from "@/hooks/use-nexora";
 import type { Place, Route, Step } from "@/shared/nexora/domain";
+import type { CarGuidanceSnapshot } from "@/shared/nexora/car-guidance";
 
 // ---------------------------------------------------------------------------
 // Android back button (BUG-008)
@@ -85,12 +86,83 @@ export function originNotice(
 
 export const LIVE_ACK_STORE = "nexora-live-ack-v1";
 
-/** The acknowledgement is asked once per install and app version. */
+/**
+ * Identifier the acknowledgement is keyed to (UX-003). `version` in
+ * app.config.ts alone stayed at 1.0.0 across builds, so the native build
+ * number (Android versionCode / iOS buildNumber) and the update id are part
+ * of the key: a new APK or OTA update asks again even if nobody bumped the
+ * version string.
+ */
+export function releaseId(parts: {
+  version?: string | null;
+  build?: string | number | null;
+  update?: string | null;
+}): string {
+  const out = [parts.version?.toString().trim() || "0"];
+  const build = parts.build?.toString().trim();
+  if (build) out.push(`b${build}`);
+  const update = parts.update?.trim();
+  if (update) out.push(`u${update}`);
+  return out.join("+");
+}
+
+/** The acknowledgement is asked once per install and release. */
 export function needsLiveAck(
   storedVersion: string | null | undefined,
   appVersion: string,
 ): boolean {
-  return storedVersion !== appVersion;
+  return !storedVersion || storedVersion !== appVersion;
+}
+
+/**
+ * What the guidance X button does (UX-005). Live GPS guidance asks first,
+ * with the same "End guidance?" sheet as the back key; a simulation is a test
+ * tool and ends straight away.
+ */
+export function endButtonAction(
+  source: "simulation" | "live" | string | null | undefined,
+): "confirm" | "end" {
+  return source === "live" ? "confirm" : "end";
+}
+
+// ---------------------------------------------------------------------------
+// Notification permission timing (UX-010)
+
+/**
+ * Where the guidance-card notification permission may be requested. Only
+ * from a screen the user is looking at before guidance starts (onboarding's
+ * location step or the live GPS acknowledgement), never from a guidance
+ * update, so no system dialog covers an active guidance screen.
+ */
+export type NotificationAskPoint =
+  | "onboarding"
+  | "live-ack"
+  | "live-start"
+  | "guidance-update";
+
+export function mayAskNotifications(
+  point: NotificationAskPoint,
+  guidanceActive: boolean,
+): boolean {
+  if (guidanceActive) return false;
+  return point !== "guidance-update";
+}
+
+/**
+ * Lock-screen card text while the app is in the background (UX-010). Live
+ * GPS guidance only runs while the app is open, so a backgrounded live card
+ * says it is paused instead of showing a turn that may no longer be right.
+ */
+export function backgroundCardContent(
+  snapshot: Pick<CarGuidanceSnapshot, "active" | "source" | "phase">,
+  content: { title: string; body: string },
+): { title: string; body: string } {
+  if (snapshot.active && snapshot.source === "live")
+    return {
+      title: "Guidance paused. Open NEXORA to continue.",
+      body: content.title ? `Last instruction: ${content.title}` : content.body,
+    };
+  return content;
 }
 
 // ---------------------------------------------------------------------------
@@ -125,8 +197,10 @@ export function currentStepIndex(steps: Step[], current?: Step | null): number {
 }
 
 /**
- * Every step of the route as text, marked done / current / next. With no
- * current step (planning) all steps are "next".
+ * Every step of the route as text, marked done / current / next. `current`
+ * is the guidance step, which means the next manoeuvre to make (PR #10), so
+ * it is read as "Next turn". With no current step (planning) all steps are
+ * "next".
  */
 export function stepItems(
   route: Pick<Route, "steps" | "id"> | null | undefined,
@@ -146,7 +220,7 @@ export function stepItems(
       arrive || step.distanceM <= 0 ? "" : formatDistance(step.distanceM);
     const prefix =
       status === "current"
-        ? "Current step. "
+        ? "Next turn. "
         : status === "done"
           ? "Done. "
           : "";
@@ -175,6 +249,40 @@ export function stepAnnouncement(
   if (!text) return "";
   if (step.type.includes("arrive") || step.distanceM <= 0) return text;
   return `In ${formatDistance(step.distanceM)}, ${text.charAt(0).toLowerCase()}${text.slice(1)}`;
+}
+
+/**
+ * Identity of the step being announced (A11Y-006): route id plus the step's
+ * index in that route. The distance in the spoken text changes on every GPS
+ * fix or simulation tick, so the text itself cannot be the key. Empty when
+ * there is no step.
+ */
+export function stepIdentity(
+  route: Pick<Route, "id" | "steps"> | null | undefined,
+  step: Step | null | undefined,
+): string {
+  if (!route || !step) return "";
+  const at = currentStepIndex(route.steps, step);
+  // A step that is not in the route (should not happen) falls back to its
+  // instruction, which still ignores distance-only changes.
+  return at >= 0
+    ? `${route.id}#${at}`
+    : `${route.id}~${step.instruction.trim()}`;
+}
+
+/**
+ * Step announcement to make now (A11Y-006), or null. Announces once when the
+ * step identity changes, never when only the distance in `text` changes.
+ * With voice guidance on, the speech engine already reads the step.
+ */
+export function nextStepAnnouncement(
+  previousKey: string,
+  key: string,
+  text: string,
+  voiceOn: boolean,
+): string | null {
+  if (!key || key === previousKey || !text) return null;
+  return voiceOn ? null : text;
 }
 
 /**
@@ -257,6 +365,30 @@ export function boundaryState(error: unknown): BoundaryState {
 
 // ---------------------------------------------------------------------------
 // Server cold start banner (BUG-001 UI part)
+
+/**
+ * Waking / unreachable line shown at the top of the search and routes sheets
+ * (UX-009). Those sheets cover the home banner, so without this the user
+ * waits on a slow first request with no explanation.
+ */
+export function panelServerNotice(
+  state: "waking" | "ready" | "unreachable" | undefined,
+  busy: boolean,
+  online = true,
+): { text: string; warning: boolean } | null {
+  if (!online || !state || state === "ready") return null;
+  if (state === "waking")
+    return {
+      text: busy
+        ? "Waking the NEXORA server… this can take up to a minute."
+        : "The NEXORA server is waking up. The first search or route can take up to a minute.",
+      warning: false,
+    };
+  return {
+    text: "NEXORA server unreachable. Demo places, saved places and offline maps still work.",
+    warning: true,
+  };
+}
 
 /** Banner text for the API server state, or null when it is ready. */
 export function serverBanner(

@@ -40,7 +40,13 @@ import {
 } from "@/shared/nexora/traffic";
 import { Badge, Button, Icon, IconButton, palette } from "./ui";
 import { StepList } from "./StepList";
-import { a11yColors, isDemoOrigin, originNotice } from "./screen-logic";
+import {
+  a11yColors,
+  isDemoOrigin,
+  originNotice,
+  panelServerNotice,
+} from "./screen-logic";
+import { requestGuidanceNotifications } from "@/lib/car/lock-screen-guidance";
 import { useOfflineRegions } from "@/hooks/use-offline-regions";
 import { OFFLINE_REGIONS, formatBytes } from "@/shared/nexora/offline";
 export type AppModel = ReturnType<typeof useNexora>;
@@ -66,6 +72,8 @@ export function Panels({
   const [searchedFor, setSearchedFor] = useState("");
   const offline = useOfflineRegions();
   const [deleteConfirm, setDeleteConfirm] = useState(false);
+  // UX-005: offline region waiting for a delete confirmation.
+  const [offlineDelete, setOfflineDelete] = useState<string | null>(null);
   const trafficDisruptions = traffic?.disruptions;
   // TfL disruptions on or beside each candidate route. Does not change route times.
   const routeTraffic = useMemo(() => {
@@ -102,11 +110,7 @@ export function Panels({
     Boolean(n.searchResults) &&
     searchedFor !== "" &&
     n.query.trim() !== searchedFor;
-  const disclosure = (
-    label: string,
-    open: boolean,
-    onPress: () => void,
-  ) => (
+  const disclosure = (label: string, open: boolean, onPress: () => void) => (
     <Pressable
       accessibilityRole="button"
       accessibilityState={{ expanded: open }}
@@ -282,16 +286,45 @@ export function Panels({
                       onPress={() => offline.download(region.id)}
                     />
                   )}
-                  {installed && (
+                  {installed && offlineDelete !== region.id && (
                     <Button
                       title="Delete offline region"
                       secondary
                       dark={dark}
-                      onPress={() => {
-                        offline.remove(region.id);
-                        n.setToast(`${region.name} offline map deleted.`);
-                      }}
+                      onPress={() => setOfflineDelete(region.id)}
                     />
+                  )}
+                  {installed && offlineDelete === region.id && (
+                    <View style={{ gap: 10 }}>
+                      {note(
+                        `Delete the ${region.name} offline map from this device? You will need to download it again to use it offline.`,
+                        true,
+                      )}
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel={`Delete ${region.name} offline map`}
+                        onPress={() => {
+                          setOfflineDelete(null);
+                          offline.remove(region.id);
+                          n.setToast(`${region.name} offline map deleted.`);
+                        }}
+                        style={({ pressed }) => [
+                          s.destructive,
+                          pressed && { opacity: 0.8 },
+                        ]}
+                      >
+                        <Icon name="trash-2" size={18} color="#FFFFFF" />
+                        <Text style={s.destructiveText}>
+                          Delete offline map
+                        </Text>
+                      </Pressable>
+                      <Button
+                        title="Keep offline map"
+                        secondary
+                        dark={dark}
+                        onPress={() => setOfflineDelete(null)}
+                      />
+                    </View>
                   )}
                 </>
               )}
@@ -322,6 +355,47 @@ export function Panels({
       <Icon name="alert-triangle" color="#BD3445" size={18} />
       <Text style={[s.noteText, { color: dark ? "#FFACB7" : "#A82C3D" }]}>
         {n.error}
+      </Text>
+    </View>
+  );
+  // UX-009: the search and routes sheets cover the home banner, so they show
+  // the server waking / unreachable line themselves.
+  const notice = panelServerNotice(n.serverState, n.busy, n.online);
+  const serverNotice = notice && (
+    <View
+      accessibilityLiveRegion="polite"
+      style={[
+        s.note,
+        {
+          alignItems: "center",
+          backgroundColor: notice.warning
+            ? dark
+              ? "#332D23"
+              : "#FFF7E6"
+            : dark
+              ? "#223247"
+              : "#F2F6F4",
+        },
+      ]}
+    >
+      {notice.warning ? (
+        <Icon
+          name="alert-circle"
+          size={17}
+          color={dark ? "#F5B544" : palette.amber}
+        />
+      ) : (
+        <ActivityIndicator size="small" color={palette.teal} />
+      )}
+      <Text
+        style={[
+          s.noteText,
+          {
+            color: notice.warning ? (dark ? "#F5CB7F" : "#79541B") : ink,
+          },
+        ]}
+      >
+        {notice.text}
       </Text>
     </View>
   );
@@ -395,6 +469,7 @@ export function Panels({
             ? "Search any UK address, postcode or place, or enter latitude, longitude."
             : "Search demo landmarks or enter latitude, longitude.",
         )}
+        {serverNotice}
         <View
           style={[
             s.inputWrap,
@@ -444,10 +519,10 @@ export function Panels({
               : staleResults
                 ? `RESULTS FOR “${searchedFor.toUpperCase()}” · PRESS SEARCH TO UPDATE`
                 : n.searchResults
-              ? "CONFIGURED PROVIDER RESULTS"
-              : n.query
-                ? "DEMO CATALOGUE RESULTS"
-                : "EXPLORE LONDON · DEMO CATALOGUE"}
+                  ? "CONFIGURED PROVIDER RESULTS"
+                  : n.query
+                    ? "DEMO CATALOGUE RESULTS"
+                    : "EXPLORE LONDON · DEMO CATALOGUE"}
           </Text>
           <Badge text="No live business data" warning dark={dark} />
         </View>
@@ -651,6 +726,7 @@ export function Panels({
           "Your route. Your call.",
           "Choose the journey that feels right.",
         )}
+        {serverNotice}
         <View
           style={[
             s.originBox,
@@ -766,10 +842,7 @@ export function Panels({
                 color={dark ? "#62D6BB" : palette.teal}
               />
               <Text
-                style={[
-                  s.linkText,
-                  { color: dark ? "#62D6BB" : palette.teal },
-                ]}
+                style={[s.linkText, { color: dark ? "#62D6BB" : palette.teal }]}
               >
                 Use my location
               </Text>
@@ -1156,9 +1229,7 @@ export function Panels({
                 title="Start live GPS guidance"
                 icon="navigation"
                 disabled={n.busy || n.error.includes("Recalculate")}
-                onPress={() =>
-                  live ? live.requestLive() : n.start("live")
-                }
+                onPress={() => (live ? live.requestLive() : n.start("live"))}
               />
             )}
             <Button
@@ -1203,10 +1274,7 @@ export function Panels({
               style={s.link}
             >
               <Text
-                style={[
-                  s.linkText,
-                  { color: dark ? "#62D6BB" : palette.teal },
-                ]}
+                style={[s.linkText, { color: dark ? "#62D6BB" : palette.teal }]}
               >
                 Use explicitly synthetic demo instead
               </Text>
@@ -1315,11 +1383,7 @@ export function Panels({
           "alert-circle",
           () => n.setPanel("review"),
         )}
-        {row(
-          "Car displays & lock screen",
-          carStatusText(),
-          "smartphone",
-        )}
+        {row("Car displays & lock screen", carStatusText(), "smartphone")}
         {row(
           "EV, trucks, zones, costs and AI",
           "Requires verified providers and validation · planned",
@@ -1331,7 +1395,9 @@ export function Panels({
           "activity",
         )}
         {n.providerRefreshing ? (
-          <View style={[s.actions, { justifyContent: "center", minHeight: 48 }]}>
+          <View
+            style={[s.actions, { justifyContent: "center", minHeight: 48 }]}
+          >
             <ActivityIndicator color={palette.teal} />
             <Text style={[s.subtitle, { color: muted }]}>
               Checking driving, walking and cycling…
@@ -1728,10 +1794,13 @@ export function Panels({
             title="Use my location"
             icon="crosshair"
             dark={dark}
-            onPress={() => {
+            onPress={async () => {
               n.setPrefs((p) => ({ ...p, onboardingSeen: true }));
               n.setPanel(null);
-              n.locate();
+              await n.locate();
+              // UX-010: ask for the guidance card here, before any guidance,
+              // so the system dialog never appears over a guidance screen.
+              await requestGuidanceNotifications("onboarding", n.active);
             }}
           />
         </View>
@@ -1805,6 +1874,17 @@ export const s = StyleSheet.create({
   },
   rowTitle: { fontSize: 14, fontWeight: "600" },
   rowDetail: { fontSize: 12, lineHeight: 18, marginTop: 4 },
+  destructive: {
+    minHeight: 52,
+    borderRadius: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingHorizontal: 16,
+    backgroundColor: "#B42335",
+  },
+  destructiveText: { color: "#FFFFFF", fontSize: 15, fontWeight: "700" },
   note: {
     flexDirection: "row",
     alignItems: "flex-start",
@@ -1850,7 +1930,12 @@ export const s = StyleSheet.create({
     backgroundColor: "#087F73",
   },
   originRow: { minHeight: 48, justifyContent: "center" },
-  originNotice: { fontSize: 13, lineHeight: 19, fontWeight: "600", flexShrink: 1 },
+  originNotice: {
+    fontSize: 13,
+    lineHeight: 19,
+    fontWeight: "600",
+    flexShrink: 1,
+  },
   disclosure: {
     minHeight: 48,
     flexDirection: "row",
