@@ -61,7 +61,7 @@ const config: ExpoConfig = {
   owner: "epps1994",
   // Bump on every release build (docs/RELEASE.md): the live-start acknowledgement is keyed
   // to this value (UX-003), so a new version asks again.
-  version: "1.1.0",
+  version: "1.2.0",
   extra: { ...publicRuntime, carDisplays, eas: { projectId: "97028c96-a8c6-4a91-9b16-ce0f465a5c0b" } },
   orientation: "default",
   icon: "./assets/images/icon.png",
