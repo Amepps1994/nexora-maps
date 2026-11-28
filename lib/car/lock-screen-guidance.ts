@@ -10,6 +10,13 @@
  *    the app made; it keeps updating only while the app is running (e.g. with Android Auto
  *    connected, which keeps the app alive as a foreground service).
  *  - Unverified for road use until tested in a real car.
+ *  - Live GPS guidance only runs while the app is open, so a backgrounded live card says
+ *    "Guidance paused. Open NEXORA to continue." instead of a turn that may be stale (UX-010).
+ *
+ * Permission (UX-010): the notification permission is requested only by
+ * `requestGuidanceNotifications()`, which the app calls from onboarding's location step
+ * and the live GPS acknowledgement, before guidance starts. Guidance updates never ask,
+ * so no system dialog appears over an active guidance screen.
  */
 import { AppState, Platform, type AppStateStatus } from "react-native";
 import * as Notifications from "expo-notifications";
@@ -18,6 +25,11 @@ import {
   type CarGuidanceSnapshot,
 } from "@/shared/nexora/car-guidance";
 import { subscribeCarGuidance } from "./guidance-bus";
+import {
+  backgroundCardContent,
+  mayAskNotifications,
+  type NotificationAskPoint,
+} from "@/components/nexora/screen-logic";
 
 export const GUIDANCE_CHANNEL_ID = "nexora-guidance";
 const NOTIFICATION_ID = "nexora-guidance-card";
@@ -41,20 +53,43 @@ async function ensureChannel(): Promise<void> {
   });
 }
 
-async function ensurePermission(): Promise<boolean> {
-  if (permission !== "unknown") return permission === "granted";
+/**
+ * Whether the card may be shown. With `ask` false (guidance updates) this only reads the
+ * current permission and never opens a system dialog.
+ */
+async function ensurePermission(ask: boolean): Promise<boolean> {
+  if (permission === "granted") return true;
+  if (permission === "denied" && !ask) return false;
   try {
     const current = await Notifications.getPermissionsAsync();
     let granted = current.granted;
-    if (!granted && current.canAskAgain) {
+    if (!granted && ask && current.canAskAgain) {
       granted = (await Notifications.requestPermissionsAsync()).granted;
     }
-    permission = granted ? "granted" : "denied";
-    if (granted) await ensureChannel();
+    if (granted) {
+      permission = "granted";
+      await ensureChannel();
+    } else if (ask || !current.canAskAgain) {
+      permission = "denied";
+    }
   } catch {
-    permission = "denied";
+    if (ask) permission = "denied";
   }
   return permission === "granted";
+}
+
+/**
+ * Ask for the guidance-card notification permission. Call only from a screen shown before
+ * guidance starts; returns false (without asking) on web or while guidance is active.
+ */
+export async function requestGuidanceNotifications(
+  point: NotificationAskPoint,
+  guidanceActive = false,
+): Promise<boolean> {
+  if (Platform.OS === "web") return false;
+  if (!mayAskNotifications(point, guidanceActive))
+    return ensurePermission(false);
+  return ensurePermission(true);
 }
 
 async function clear(): Promise<void> {
@@ -69,10 +104,10 @@ async function clear(): Promise<void> {
 }
 
 async function show(s: CarGuidanceSnapshot): Promise<void> {
-  const { title, body } = lockScreenContent(s);
+  const { title, body } = backgroundCardContent(s, lockScreenContent(s));
   const key = `${title}|${body}`;
   if (shown && key === lastKey) return;
-  if (!(await ensurePermission())) return;
+  if (!(await ensurePermission(false))) return;
   lastKey = key;
   shown = true;
   try {
@@ -112,8 +147,7 @@ export function startLockScreenGuidance(): void {
   };
 
   subscribeCarGuidance((s) => {
-    // Ask for notification permission when guidance starts, not at app launch.
-    if (s.active && permission === "unknown") void ensurePermission();
+    // Never ask for permission here (UX-010): see requestGuidanceNotifications.
     latest = s;
     update();
   });
