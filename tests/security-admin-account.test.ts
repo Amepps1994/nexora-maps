@@ -152,9 +152,19 @@ describe("SEC-ADMIN: deny-by-default route inventory", () => {
         "ALL /api/nexora/admin/*",
       ].sort(),
     );
-    // The only middleware: CORS, the JSON parser and the static map assets. No session,
+    // The only middleware: security headers, CORS, the JSON parser, the static map assets and
+    // the JSON 404 and error handlers (OPS-006). No session,
     // cookie, tRPC or storage middleware.
     const middleware = stack.filter((l) => !l.route).map((l) => l.name);
-    expect(middleware).toEqual(["query", "expressInit", "<anonymous>", "jsonParser", "serveStatic"]);
+    expect(middleware).toEqual([
+      "query",
+      "expressInit",
+      "securityHeaders",
+      "<anonymous>",
+      "jsonParser",
+      "serveStatic",
+      "jsonNotFound",
+      "jsonErrors",
+    ]);
   });
 });

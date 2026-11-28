@@ -89,3 +89,145 @@ export function buildSearchRequest(cfg: GeocoderConfig, q: string) {
 export function isEmptyResultStatus(cfg: GeocoderConfig, status: number) {
   return cfg.provider === "locationiq" && status === 404;
 }
+
+// ---- SEC-011: quota protection -------------------------------------------------------------
+//
+// LocationIQ's free plan allows 5,000 requests a day (2/s, 60/min) and lets free accounts cache
+// results for up to 48 hours ("If you're on the free plan, we allow caching for upto 48 hours",
+// help.locationiq.com article 36000216111, read 28 Nov 2026). Both limits below are env-tunable
+// so they can be relaxed on Render without a deploy.
+
+/** Default daily upstream budget: well under the free plan's 5,000/day (decision D4 is open). */
+export const DEFAULT_GEOCODER_DAILY_BUDGET = 4000;
+/** Default cache lifetime: 24 h, half of LocationIQ's 48 h free-plan cap. */
+export const DEFAULT_SEARCH_CACHE_TTL_S = 24 * 60 * 60;
+/** Never cache longer than the free plan allows, whatever the env says. */
+export const MAX_SEARCH_CACHE_TTL_S = 48 * 60 * 60;
+export const DEFAULT_SEARCH_CACHE_ENTRIES = 500;
+
+type Env = Record<string, string | undefined>;
+
+function readInt(raw: string | undefined, fallback: number): number {
+  if (raw === undefined || raw.trim() === "") return fallback;
+  const n = Number(raw.trim());
+  return Number.isFinite(n) && n >= 0 ? Math.floor(n) : fallback;
+}
+
+/**
+ * NEXORA_GEOCODER_DAILY_BUDGET: upstream geocoder calls allowed per UTC day. "off" disables
+ * the budget (only sensible on a paid or self-hosted geocoder). Invalid values use the default.
+ */
+export function geocoderDailyBudget(env: Env = process.env): number | null {
+  const raw = (env.NEXORA_GEOCODER_DAILY_BUDGET || "").trim().toLowerCase();
+  if (raw === "off") return null;
+  const n = readInt(raw, DEFAULT_GEOCODER_DAILY_BUDGET);
+  return n > 0 ? n : DEFAULT_GEOCODER_DAILY_BUDGET;
+}
+
+/** NEXORA_SEARCH_CACHE_TTL_S: cache lifetime in seconds, 0 disables, capped at 48 h. */
+export function searchCacheTtlSeconds(env: Env = process.env): number {
+  return Math.min(
+    readInt(env.NEXORA_SEARCH_CACHE_TTL_S, DEFAULT_SEARCH_CACHE_TTL_S),
+    MAX_SEARCH_CACHE_TTL_S,
+  );
+}
+
+/** Lowercase, trimmed, inner whitespace collapsed: "  Tate   MODERN " and "tate modern" match. */
+export function normaliseSearchQuery(q: string): string {
+  return q.trim().replace(/\s+/g, " ").toLowerCase();
+}
+
+/** Small in-memory LRU with a fixed TTL. Holds only provider results, never keys or client data. */
+export class SearchCache<T> {
+  private entries = new Map<string, { value: T; expires: number }>();
+  hits = 0;
+  misses = 0;
+  constructor(
+    readonly ttlMs: number,
+    readonly maxEntries: number = DEFAULT_SEARCH_CACHE_ENTRIES,
+    private now: () => number = Date.now,
+  ) {}
+  get enabled() {
+    return this.ttlMs > 0 && this.maxEntries > 0;
+  }
+  get size() {
+    return this.entries.size;
+  }
+  get(key: string): T | undefined {
+    if (!this.enabled) return undefined;
+    const hit = this.entries.get(key);
+    if (!hit || hit.expires <= this.now()) {
+      if (hit) this.entries.delete(key);
+      this.misses += 1;
+      return undefined;
+    }
+    // Refresh recency without extending the TTL.
+    this.entries.delete(key);
+    this.entries.set(key, hit);
+    this.hits += 1;
+    return hit.value;
+  }
+  set(key: string, value: T) {
+    if (!this.enabled) return;
+    this.entries.delete(key);
+    this.entries.set(key, { value, expires: this.now() + this.ttlMs });
+    while (this.entries.size > this.maxEntries) {
+      const oldest = this.entries.keys().next().value;
+      if (oldest === undefined) break;
+      this.entries.delete(oldest);
+    }
+  }
+}
+
+const utcDay = (t: number) => new Date(t).toISOString().slice(0, 10);
+
+/** Counts upstream calls per UTC day and refuses once the budget is spent. */
+export class DailyBudget {
+  private day: string;
+  private used = 0;
+  private exhausted = false;
+  constructor(
+    readonly limit: number | null,
+    private now: () => number = Date.now,
+  ) {
+    this.day = utcDay(now());
+  }
+  private roll() {
+    const today = utcDay(this.now());
+    if (today !== this.day) {
+      this.day = today;
+      this.used = 0;
+      this.exhausted = false;
+    }
+  }
+  /** Reserve one upstream call. False means the budget is spent: do not call upstream. */
+  take(): boolean {
+    this.roll();
+    if (this.exhausted) return false;
+    if (this.limit !== null && this.used >= this.limit) return false;
+    this.used += 1;
+    return true;
+  }
+  /** The provider itself said the day's quota is gone (LocationIQ "Rate Limited Day"). */
+  markExhausted() {
+    this.roll();
+    this.exhausted = true;
+  }
+  snapshot() {
+    this.roll();
+    const remaining =
+      this.limit === null
+        ? null
+        : this.exhausted
+          ? 0
+          : Math.max(0, this.limit - this.used);
+    const next = new Date(`${this.day}T00:00:00.000Z`);
+    next.setUTCDate(next.getUTCDate() + 1);
+    return {
+      dailyBudget: this.limit,
+      usedToday: this.used,
+      remaining,
+      resetsAt: next.toISOString(),
+    };
+  }
+}
