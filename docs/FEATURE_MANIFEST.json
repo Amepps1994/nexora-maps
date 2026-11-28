@@ -1,6 +1,8 @@
 {
   "schema_version": "1.0.0",
   "generated_at": "2026-11-26",
+  "reviewed_at": "2026-11-28",
+  "reviewed_against": "main @ e2bd944 plus the WS-F client cleanup branch; see docs/roadmap/reaudit-2026-11-28-e2bd944/ROADMAP_RECONCILIATION.md",
   "project": "NEXORA Maps",
   "source": {
     "path": "docs/MASTER_PROMPT.txt",
@@ -614,7 +616,7 @@
         "verified closure/legal/off-route signals"
       ],
       "state": "planned",
-      "state_basis": "Requirement baseline only: plan.md describes intent and TODO.md remains unchecked; no implementation/test evidence inspected for this clause.",
+      "state_basis": "Requirement baseline only: plan.md describes intent and TODO.md remains unchecked; no implementation/test evidence inspected for this clause. 28 Nov 2026 review at e2bd944 (PRs #3-#8 plus the WS-F client cleanup; DOC-003): Reroutes keep only the stops still ahead (BUG-002) and live reroute candidates go through judgeRerouteCandidate with a 10 s timeout (BUG-007). Unit tested; no GPX replay through the live controller yet. State unchanged.",
       "acceptance_criterion": "Verify every clause of the verbatim original requirement, at its gated phase. Stable repeated gain exceeds max(180s,10% remaining), cooldown/lock apply; essential verified events override; safe no-route advice.",
       "effort_estimate_person_days": {
         "min": 8,
@@ -622,7 +624,11 @@
         "type": "planning estimate, not promise",
         "scope": "Full paragraph across applicable phases; overlaps other requirements and is not additive."
       },
-      "evidence": []
+      "evidence": [
+        "shared/nexora/reroute.ts",
+        "tests/nexora-client-reroute.test.ts",
+        "docs/roadmap/reaudit-2026-11-28-e2bd944/ROADMAP_RECONCILIATION.md"
+      ]
     },
     {
       "id": "F3.3-03",
@@ -695,7 +701,7 @@
         "devices"
       ],
       "state": "requires provider/approval",
-      "state_basis": "Requirement baseline only: plan.md describes intent and TODO.md remains unchecked; no implementation/test evidence inspected for this clause.",
+      "state_basis": "Requirement baseline only: plan.md describes intent and TODO.md remains unchecked; no implementation/test evidence inspected for this clause. 28 Nov 2026 review at e2bd944 (PRs #3-#8 plus the WS-F client cleanup; DOC-003): Turn icons now come from the OSRM type and modifier (BUG-005, shared/nexora/maneuver.ts) and instruction text no longer produces 'Turn uturn' or empty road names (BUG-004). Unit tested; arrows seen on the e2bd944 emulator APK. No lane cues or advisory speed exist, and nothing is validated on a road, so the state is unchanged.",
       "acceptance_criterion": "Verify every clause of the verbatim original requirement, at its gated phase. Engine-derived guidance tested on native devices; unknown posted limits remain unknown; signs/instruments take priority.",
       "effort_estimate_person_days": {
         "min": 25,
@@ -703,7 +709,12 @@
         "type": "planning estimate, not promise",
         "scope": "Full paragraph across applicable phases; overlaps other requirements and is not additive."
       },
-      "evidence": []
+      "evidence": [
+        "shared/nexora/maneuver.ts",
+        "server/nexora/route-mapper.ts",
+        "tests/nexora-route-mapper.test.ts",
+        "docs/roadmap/reaudit-2026-11-28-e2bd944/ROADMAP_RECONCILIATION.md"
+      ]
     },
     {
       "id": "F3.4-02",
@@ -938,7 +949,7 @@
         "consented queue policy"
       ],
       "state": "planned",
-      "state_basis": "Requirement baseline only: plan.md describes intent and TODO.md remains unchecked; no implementation/test evidence inspected for this clause.",
+      "state_basis": "Requirement baseline only: plan.md describes intent and TODO.md remains unchecked; no implementation/test evidence inspected for this clause. 28 Nov 2026 review at e2bd944 (PRs #3-#8 plus the WS-F client cleanup; DOC-003): Network state: the client marks the server waking, ready or unreachable and shows it (BUG-001, PR #6 and #7). No offline cache disclosure or reconnect queue beyond that. State unchanged.",
       "acceptance_criterion": "Verify every clause of the verbatim original requirement, at its gated phase. Online/degraded/offline honest; cached route not offline routing; stale traffic/queued hazards not republished as live.",
       "effort_estimate_person_days": {
         "min": 6,
@@ -946,7 +957,11 @@
         "type": "planning estimate, not promise",
         "scope": "Full paragraph across applicable phases; overlaps other requirements and is not additive."
       },
-      "evidence": []
+      "evidence": [
+        "lib/nexora-api-core.ts",
+        "tests/nexora-client-api.test.ts",
+        "docs/roadmap/reaudit-2026-11-28-e2bd944/ROADMAP_RECONCILIATION.md"
+      ]
     },
     {
       "id": "F3.7-01",
@@ -1125,7 +1140,7 @@
         "contextual location/privacy"
       ],
       "state": "planned",
-      "state_basis": "Requirement baseline only: plan.md describes intent and TODO.md remains unchecked; no implementation/test evidence inspected for this clause.",
+      "state_basis": "Requirement baseline only: plan.md describes intent and TODO.md remains unchecked; no implementation/test evidence inspected for this clause. 28 Nov 2026 review at e2bd944 (PRs #3-#8 plus the WS-F client cleanup; DOC-003): Onboarding opens once and names the demo origin plainly (BUG-009). Unit tested; a fresh-install emulator check is outstanding. State unchanged.",
       "acceptance_criterion": "Verify every clause of the verbatim original requirement, at its gated phase. Three benefits, guest option and privacy/preferences without permission wall.",
       "effort_estimate_person_days": {
         "min": 2,
@@ -1133,7 +1148,11 @@
         "type": "planning estimate, not promise",
         "scope": "Full paragraph across applicable phases; overlaps other requirements and is not additive."
       },
-      "evidence": []
+      "evidence": [
+        "components/nexora/screen-logic.ts",
+        "tests/nexora-screens.test.ts",
+        "docs/roadmap/reaudit-2026-11-28-e2bd944/ROADMAP_RECONCILIATION.md"
+      ]
     },
     {
       "id": "SCREEN-B",
@@ -1265,7 +1284,7 @@
         "later native guidance and speed/lanes sources"
       ],
       "state": "planned",
-      "state_basis": "Requirement baseline only: plan.md describes intent and TODO.md remains unchecked; no implementation/test evidence inspected for this clause.",
+      "state_basis": "Requirement baseline only: plan.md describes intent and TODO.md remains unchecked; no implementation/test evidence inspected for this clause. 28 Nov 2026 review at e2bd944 (PRs #3-#8 plus the WS-F client cleanup; DOC-003): The Android back key closes a sheet or asks 'End guidance?' during guidance (BUG-008), and the turn list can be read as a step list (FEAT-001). Unit tested and seen on the e2bd944 emulator APK. Still open: the guidance X button ends without a confirm (UX-005), and back from idle is not checked on an emulator. State unchanged.",
       "acceptance_criterion": "Verify every clause of the verbatim original requirement, at its gated phase. Persistent simulation badge; next turn/progress/mute/end/recenter, no tabs; unknown speed/limit and safety gates.",
       "effort_estimate_person_days": {
         "min": 5,
@@ -1273,7 +1292,12 @@
         "type": "planning estimate, not promise",
         "scope": "Full paragraph across applicable phases; overlaps other requirements and is not additive."
       },
-      "evidence": []
+      "evidence": [
+        "components/nexora/screen-logic.ts",
+        "components/nexora/StepList.tsx",
+        "tests/nexora-screens.test.ts",
+        "docs/roadmap/reaudit-2026-11-28-e2bd944/ROADMAP_RECONCILIATION.md"
+      ]
     },
     {
       "id": "SCREEN-G",
@@ -1641,7 +1665,7 @@
         "later queue/live transport"
       ],
       "state": "planned",
-      "state_basis": "Requirement baseline only: plan.md describes intent and TODO.md remains unchecked; no implementation/test evidence inspected for this clause.",
+      "state_basis": "Requirement baseline only: plan.md describes intent and TODO.md remains unchecked; no implementation/test evidence inspected for this clause. 28 Nov 2026 review at e2bd944 (PRs #3-#8 plus the WS-F client cleanup; DOC-003): The Manus OAuth, sessions, cookies, storage proxy, tRPC and database code is gone from the server (PR #5) and the client (WS-F: the oauth/callback route, lib/_core auth and API, lib/trpc.ts, hooks/use-auth.ts, React Query and the Manus runtime). The API is anonymous; there is no account or storage layer. State unchanged.",
       "acceptance_criterion": "Verify every clause of the verbatim original requirement, at its gated phase. Guest local-first; no implied PostGIS/scale; separate environments; future cloud queue/auth/live systems tested before claims.",
       "effort_estimate_person_days": {
         "min": 15,
@@ -1649,7 +1673,12 @@
         "type": "planning estimate, not promise",
         "scope": "Full paragraph across applicable phases; overlaps other requirements and is not additive."
       },
-      "evidence": []
+      "evidence": [
+        "server/_core/app.ts",
+        "tests/server-routes.test.ts",
+        "tests/release-config.test.ts",
+        "docs/roadmap/reaudit-2026-11-28-e2bd944/ROADMAP_RECONCILIATION.md"
+      ]
     },
     {
       "id": "TECH-DATA",
@@ -1993,7 +2022,7 @@
         "later native device tests"
       ],
       "state": "planned",
-      "state_basis": "Requirement baseline only: plan.md describes intent and TODO.md remains unchecked; no implementation/test evidence inspected for this clause.",
+      "state_basis": "Requirement baseline only: plan.md describes intent and TODO.md remains unchecked; no implementation/test evidence inspected for this clause. 28 Nov 2026 review at e2bd944 (PRs #3-#8 plus the WS-F client cleanup; DOC-003): Live GPS guidance no longer arrives on the first fix of a round trip (BUG-003). Live guidance remains foreground only and unverified for road use until LG-1 to LG-10 in docs/DEVICE_TEST_PLAN.md pass on a phone. State unchanged.",
       "acceptance_criterion": "Verify every clause of the verbatim original requirement, at its gated phase. Position/next turn/arrival/drift/recovery explicit simulation; actual native navigation not verified before tests.",
       "effort_estimate_person_days": {
         "min": 1,
@@ -2001,7 +2030,12 @@
         "type": "planning estimate, not promise",
         "scope": "Full paragraph across applicable phases; overlaps other requirements and is not additive."
       },
-      "evidence": []
+      "evidence": [
+        "shared/nexora/guidance.ts",
+        "hooks/use-live-guidance.ts",
+        "tests/nexora-guidance.test.ts",
+        "docs/roadmap/reaudit-2026-11-28-e2bd944/ROADMAP_RECONCILIATION.md"
+      ]
     },
     {
       "id": "ACC-07",
@@ -2044,7 +2078,7 @@
         "provider/schema/permission tests"
       ],
       "state": "planned",
-      "state_basis": "Requirement baseline only: plan.md describes intent and TODO.md remains unchecked; no implementation/test evidence inspected for this clause.",
+      "state_basis": "Requirement baseline only: plan.md describes intent and TODO.md remains unchecked; no implementation/test evidence inspected for this clause. 28 Nov 2026 review at e2bd944 (PRs #3-#8 plus the WS-F client cleanup; DOC-003): Cold start of the free Render API (BUG-001): typed timeouts, a warm-up call, a waking overlay at 8 s and failure at 60 s, plus a banner while the server wakes or is unreachable. Unit tested; the waking state was seen on the e2bd944 emulator APK. Not yet run: a cold launch after 20+ minutes of Render sleep, and permission, GPS-loss and quota cases. State unchanged.",
       "acceptance_criterion": "Verify every clause of the verbatim original requirement, at its gated phase. No freeze/fabrication across denial/timeouts/quota/GPS loss; cache not labelled offline calculation.",
       "effort_estimate_person_days": {
         "min": 2,
@@ -2052,7 +2086,12 @@
         "type": "planning estimate, not promise",
         "scope": "Full paragraph across applicable phases; overlaps other requirements and is not additive."
       },
-      "evidence": []
+      "evidence": [
+        "lib/nexora-api-core.ts",
+        "components/nexora/JourneyMap.tsx",
+        "tests/nexora-client-api.test.ts",
+        "docs/roadmap/reaudit-2026-11-28-e2bd944/ROADMAP_RECONCILIATION.md"
+      ]
     },
     {
       "id": "ACC-09",
@@ -2097,7 +2136,7 @@
         "scans/admin tests"
       ],
       "state": "planned",
-      "state_basis": "Requirement baseline unchanged. 27 Nov 2026 evidence covers only the admin-protection and session-token clauses on the development API (SLICE-SEC-ADMIN). Not covered: local export/delete, sharing revocation/expiry, expired share URLs, raw GPS in logs, secret scanning. Logout does not revoke tokens (recorded as a todo test). State stays planned.",
+      "state_basis": "Requirement baseline unchanged. 27 Nov 2026 evidence covers only the admin-protection and session-token clauses on the development API (SLICE-SEC-ADMIN). Not covered: local export/delete, sharing revocation/expiry, expired share URLs, raw GPS in logs, secret scanning. Logout does not revoke tokens (recorded as a todo test). State stays planned. 28 Nov 2026 review at e2bd944 (PRs #3-#8 plus the WS-F client cleanup; DOC-003): The Manus OAuth/session layer this evidence tested (server/_core/sdk.ts, storageProxy.ts) was deleted in PR #5, and the client half in WS-F, so the session-token and logout-revocation clauses are moot: there are no accounts or tokens. Admin routes still deny anonymous callers; tests/server-routes.test.ts and tests/security-admin-account.test.ts pin the full route inventory. State unchanged.",
       "acceptance_criterion": "Verify every clause of the verbatim original requirement, at its gated phase. Owned local export/delete and no raw GPS/secrets; future sharing/ownership tests blocked until implementation.",
       "effort_estimate_person_days": {
         "min": 3,
@@ -2107,12 +2146,12 @@
       },
       "evidence": [
         "server/_core/app.ts",
-        "server/_core/sdk.ts",
-        "server/_core/storageProxy.ts",
         "server/nexora/routes.ts",
         "tests/security-admin-account.test.ts",
         "docs/security-test-output-2026-11-27.txt",
-        "docs/security-admin-validation-2026-11-27.md"
+        "docs/security-admin-validation-2026-11-27.md",
+        "tests/server-routes.test.ts",
+        "docs/roadmap/reaudit-2026-11-28-e2bd944/ROADMAP_RECONCILIATION.md"
       ]
     },
     {
@@ -2131,7 +2170,7 @@
         "contrast/font/target/focus tests"
       ],
       "state": "planned",
-      "state_basis": "Requirement baseline only: plan.md describes intent and TODO.md remains unchecked; no implementation/test evidence inspected for this clause.",
+      "state_basis": "Requirement baseline only: plan.md describes intent and TODO.md remains unchecked; no implementation/test evidence inspected for this clause. 28 Nov 2026 review at e2bd944 (PRs #3-#8 plus the WS-F client cleanup; DOC-003): Step list (FEAT-001), one announcement per new step when voice is muted (A11Y-001) and the flagged colour pairs (A11Y-003) are implemented with unit tests. No TalkBack, large-font or full contrast sweep has run. State unchanged.",
       "acceptance_criterion": "Verify every clause of the verbatim original requirement, at its gated phase. Meaningful screen-reader order, large fonts/landscape/reduced motion; moving forms blocked, voice tested only if built.",
       "effort_estimate_person_days": {
         "min": 3,
@@ -2139,7 +2178,12 @@
         "type": "planning estimate, not promise",
         "scope": "Full paragraph across applicable phases; overlaps other requirements and is not additive."
       },
-      "evidence": []
+      "evidence": [
+        "components/nexora/StepList.tsx",
+        "components/nexora/screen-logic.ts",
+        "tests/nexora-screens.test.ts",
+        "docs/roadmap/reaudit-2026-11-28-e2bd944/ROADMAP_RECONCILIATION.md"
+      ]
     },
     {
       "id": "ACC-12",
@@ -2869,7 +2913,7 @@
         "safe localisation"
       ],
       "state": "requires provider/approval",
-      "state_basis": "Phased scope requires the listed provider, native, data or approval gate; no evidence of a passed gate. Parent remains verbatim.",
+      "state_basis": "Phased scope requires the listed provider, native, data or approval gate; no evidence of a passed gate. Parent remains verbatim. 28 Nov 2026 review at e2bd944 (PRs #3-#8 plus the WS-F client cleanup; DOC-003): Voice prompts use on-device text-to-speech (expo-speech, en-GB) during live guidance; the app never records audio (RECORD_AUDIO blocked, PRIV-001). Not tested on a device (LG-6, LG-8, LG-10). State unchanged.",
       "acceptance_criterion": "Prompts/interruptions/accessibility/audio-only work on named physical devices. All related constraints in the preserved parent paragraph also apply.",
       "effort_estimate_person_days": {
         "min": 10,
@@ -2877,7 +2921,11 @@
         "type": "planning estimate, not promise",
         "scope": "This focused slice overlaps parent and other entries; not additive."
       },
-      "evidence": []
+      "evidence": [
+        "hooks/use-live-guidance.ts",
+        "tests/release-config.test.ts",
+        "docs/roadmap/reaudit-2026-11-28-e2bd944/ROADMAP_RECONCILIATION.md"
+      ]
     },
     {
       "id": "HAZARDS-LIVE",
@@ -2983,7 +3031,7 @@
         "permitted HUD/native integration"
       ],
       "state": "requires provider/approval",
-      "state_basis": "Phased scope requires the listed provider, native, data or approval gate; no evidence of a passed gate. Parent remains verbatim.",
+      "state_basis": "Phased scope requires the listed provider, native, data or approval gate; no evidence of a passed gate. Parent remains verbatim. 28 Nov 2026 review at e2bd944 (PRs #3-#8 plus the WS-F client cleanup; DOC-003): Android Auto, CarPlay (behind the Apple entitlement) and the lock-screen card are wired to the shared guidance snapshot (docs/CAR_DISPLAYS.md). Unit tested only; the Android Auto DHU checklist has not run. State unchanged.",
       "acceptance_criterion": "Approved physical car-display tests, no fake integration or vehicle control. All related constraints in the preserved parent paragraph also apply.",
       "effort_estimate_person_days": {
         "min": 25,
@@ -2991,7 +3039,14 @@
         "type": "planning estimate, not promise",
         "scope": "This focused slice overlaps parent and other entries; not additive."
       },
-      "evidence": []
+      "evidence": [
+        "shared/nexora/car-guidance.ts",
+        "lib/car/car-displays.tsx",
+        "plugins/with-car-displays.js",
+        "tests/nexora-car-guidance.test.ts",
+        "docs/CAR_DISPLAYS.md",
+        "docs/roadmap/reaudit-2026-11-28-e2bd944/ROADMAP_RECONCILIATION.md"
+      ]
     },
     {
       "id": "CUSTOM-MEDIA",
@@ -3465,7 +3520,7 @@
         "adversarial tests"
       ],
       "state": "requires provider/approval",
-      "state_basis": "Parent remains verbatim. 27 Nov 2026: adversarial tests against the real development API (in-memory user table, OAuth mocked offline) show anonymous and non-admin admin requests denied and no export/delete/report surface on the server, so nothing to leak yet; see SLICE-SEC-ADMIN. State unchanged: no protected endpoint/auth design is approved, no real deployment, database or OAuth was tested, and cross-account ownership tests for real account data are blocked until those endpoints exist.",
+      "state_basis": "Parent remains verbatim. 27 Nov 2026: adversarial tests against the real development API (in-memory user table, OAuth mocked offline) show anonymous and non-admin admin requests denied and no export/delete/report surface on the server, so nothing to leak yet; see SLICE-SEC-ADMIN. State unchanged: no protected endpoint/auth design is approved, no real deployment, database or OAuth was tested, and cross-account ownership tests for real account data are blocked until those endpoints exist. 28 Nov 2026 review at e2bd944 (PRs #3-#8 plus the WS-F client cleanup; DOC-003): The Manus OAuth/session layer this evidence tested (server/_core/sdk.ts, storageProxy.ts) was deleted in PR #5, and the client half in WS-F, so the session-token and logout-revocation clauses are moot: there are no accounts or tokens. Admin routes still deny anonymous callers; tests/server-routes.test.ts and tests/security-admin-account.test.ts pin the full route inventory. State unchanged.",
       "acceptance_criterion": "Anonymous admin unavailable/denied; no cross-account export/delete/report leakage. All related constraints in the preserved parent paragraph also apply.",
       "effort_estimate_person_days": {
         "min": 3,
@@ -3475,12 +3530,12 @@
       },
       "evidence": [
         "server/_core/app.ts",
-        "server/_core/sdk.ts",
-        "server/_core/storageProxy.ts",
         "server/nexora/routes.ts",
         "tests/security-admin-account.test.ts",
         "docs/security-test-output-2026-11-27.txt",
-        "docs/security-admin-validation-2026-11-27.md"
+        "docs/security-admin-validation-2026-11-27.md",
+        "tests/server-routes.test.ts",
+        "docs/roadmap/reaudit-2026-11-28-e2bd944/ROADMAP_RECONCILIATION.md"
       ]
     },
     {
@@ -3774,7 +3829,7 @@
       "priority": "P0",
       "dependency": "Parent F3.2-02. OSRM test service; native touch/assistive tech not validated",
       "state": "implemented but unverified",
-      "state_basis": "Live test provider returned 1 route with 2 legs for car/foot/bike when probed from a desktop browser on 27 Nov 2026. That real car response (trimmed) drives mapper/API tests. The app's own server-to-provider path with stops was not run live because the build container cannot reach the provider. Web DOM smoke used the synthetic demo route. No native device check. Round trip, order optimisation, drag-reorder and time windows are NOT implemented, so F3.2-02 stays planned.",
+      "state_basis": "Live test provider returned 1 route with 2 legs for car/foot/bike when probed from a desktop browser on 27 Nov 2026. That real car response (trimmed) drives mapper/API tests. The app's own server-to-provider path with stops was not run live because the build container cannot reach the provider. Web DOM smoke used the synthetic demo route. No native device check. Round trip, order optimisation, drag-reorder and time windows are NOT implemented, so F3.2-02 stays planned. 28 Nov 2026 review at e2bd944 (PRs #3-#8 plus the WS-F client cleanup; DOC-003): Multi-stop code is unchanged since 27 Nov except that per-leg step mapping now uses the new maneuver table (PR #4). Reroutes drop stops already passed (BUG-002). Still no live app request with stops and no native check, so the state stays implemented but unverified.",
       "acceptance_criterion": "Stops are visited in the order shown, invalidate stale routes, show leg totals that sum to the route total, and label intermediate arrivals. Live end-to-end app request with stops and native device check are still required.",
       "effort_estimate_person_days": {
         "min": 1,
@@ -3788,7 +3843,10 @@
         "tests/nexora-itinerary.test.ts",
         "tests/fixtures/osrm-car-multistop.json",
         "docs/provider-capability-probe-2026-11-27.json",
-        "docs/itinerary-validation-2026-11-27.md"
+        "docs/itinerary-validation-2026-11-27.md",
+        "shared/nexora/reroute.ts",
+        "tests/nexora-client-reroute.test.ts",
+        "docs/roadmap/reaudit-2026-11-28-e2bd944/ROADMAP_RECONCILIATION.md"
       ]
     },
     {
@@ -3843,7 +3901,7 @@
       "priority": "P0",
       "dependency": "Parents SEC-ADMIN (SEC-01) and ACC-10. Real MySQL, OAuth provider and deployed host not tested",
       "state": "implemented/tested",
-      "state_basis": "tests/security-admin-account.test.ts (71 pass, 1 todo) runs the real Express app from server/_core/app.ts over HTTP and the real tRPC router, with an in-memory users table and the OAuth server mocked offline. Before the server fixes the same file had 9 failures: bare /api/nexora/admin returned 404 instead of 403, a token for another app id was accepted, a 5-byte JWT_SECRET minted and accepted sessions, and an anonymous caller made the storage proxy request a presigned URL. All pass after the fixes. Export/delete/report endpoints do not exist on the server, so leakage was tested only as absence. Logout does not revoke tokens and storage keys are not owner-scoped (known gaps). Parents SEC-ADMIN and ACC-10 keep their states.",
+      "state_basis": "tests/security-admin-account.test.ts (71 pass, 1 todo) runs the real Express app from server/_core/app.ts over HTTP and the real tRPC router, with an in-memory users table and the OAuth server mocked offline. Before the server fixes the same file had 9 failures: bare /api/nexora/admin returned 404 instead of 403, a token for another app id was accepted, a 5-byte JWT_SECRET minted and accepted sessions, and an anonymous caller made the storage proxy request a presigned URL. All pass after the fixes. Export/delete/report endpoints do not exist on the server, so leakage was tested only as absence. Logout does not revoke tokens and storage keys are not owner-scoped (known gaps). Parents SEC-ADMIN and ACC-10 keep their states. 28 Nov 2026 review at e2bd944 (PRs #3-#8 plus the WS-F client cleanup; DOC-003): The Manus OAuth/session layer this evidence tested (server/_core/sdk.ts, storageProxy.ts) was deleted in PR #5, and the client half in WS-F, so the session-token and logout-revocation clauses are moot: there are no accounts or tokens. Admin routes still deny anonymous callers; tests/server-routes.test.ts and tests/security-admin-account.test.ts pin the full route inventory. State unchanged.",
       "acceptance_criterion": "Anonymous and non-admin admin requests are denied on every method and path variant; a role claim in a token does not grant admin; a session resolves only to its own account; forged, tampered, expired, alg:none, wrong-algorithm, other-app and weak-secret tokens are rejected; tokens are not logged; no endpoint returns another account's data.",
       "effort_estimate_person_days": {
         "min": 1,
@@ -3853,12 +3911,12 @@
       },
       "evidence": [
         "server/_core/app.ts",
-        "server/_core/sdk.ts",
-        "server/_core/storageProxy.ts",
         "server/nexora/routes.ts",
         "tests/security-admin-account.test.ts",
         "docs/security-test-output-2026-11-27.txt",
-        "docs/security-admin-validation-2026-11-27.md"
+        "docs/security-admin-validation-2026-11-27.md",
+        "tests/server-routes.test.ts",
+        "docs/roadmap/reaudit-2026-11-28-e2bd944/ROADMAP_RECONCILIATION.md"
       ]
     },
     {

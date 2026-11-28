@@ -106,6 +106,39 @@ Master-brief goals are not achieved measurements: route median <=2 s/p95 <=5 s o
 
 Roles must be assigned to actual people before beta. A gate stays blocked/not-run until proof exists; documentation or a working web preview cannot clear it. The main agent must update only the exact proved feature/subfeature, not an entire mixed paragraph after testing one control. Keep unverified advanced clauses discoverable and disabled.
 
+## Builds under test (updated 2026-11-28)
+
+| Build | Commit | Version | Where | Result so far |
+|---|---|---|---|---|
+| Combined `production-apk`, 28 Nov 2026 | `e2bd944` (PRs #2 to #8) | 1.0.0 | Andrew's x86_64 Android emulator | Smoke test passed: app opens, map loads, search and route planning work. EAS build id and version code still to be recorded here (see [RELEASE.md](RELEASE.md)). |
+| Next combined APK | `main` after WS-A to WS-F | 1.1.0 | Not built yet | Run the rows below, then LG-1 to LG-10 |
+
+Automated checks for the WS-F branch (28 Nov 2026, cloud clone, Node 22): `pnpm check` pass, `pnpm lint` no problems,
+`pnpm test` 22 files, 606 tests, all pass (after rebasing on main at c8ac668). These do not replace the emulator and device rows.
+
+### Checks added for the 27 Nov sprint (run on the next combined APK)
+
+Screenshots taken before WS-A (`docs/screenshots/live-guidance-*.png`, `planner-*.png` and the e2bd944 emulator
+set) show the old "Head left onto …" depart wording and a simulation banner that showed the step being driven.
+Retake them from the next combined APK and save them under `docs/screenshots/<build>/`.
+
+Each row names the backlog item from `docs/roadmap/reaudit-2026-11-28-e2bd944/`. Record build id, commit, device and
+date with each result.
+
+| # | Item | Case | Expected | e2bd944 APK | Next APK |
+|---|---|---|---|---|---|
+| R-1 | BUG-001 | Let Render sleep 20+ min, then cold-launch | Waking overlay appears at once; map, then search with LocationIQ, within about a minute; no failed first request | Not run | Not run |
+| R-2 | BUG-008 | Android back key in idle, sheet open, preview and guidance | Idle exits, a sheet closes, guidance asks "End guidance?" | Guidance case seen (End guidance? sheet) | Not run |
+| R-3 | BUG-009 | Clear app data, open the app twice | Onboarding shows once; "Use my location" works | Not run | Not run |
+| R-4 | UX-003 | Start live guidance twice, then install a build with a higher `version` | No acknowledgement on the second start; asked again after the version bump (1.0.0 to 1.1.0) | Not run | Not run |
+| R-5 | A11Y-001, A11Y-006, FEAT-001 | TalkBack on, voice muted, simulated trip | Each new step announced once; the step list reads every step without the map | Not run | Not run |
+| R-6 | BUG-005 | Plan a route with left, right and U-turns | Arrow matches each turn | Left and straight-on arrows seen | Not run |
+| R-7 | BUG-007 | Detour GPX (`docs/mock-gps/kings-cross-tate-modern-detour.gpx`) with the network throttled | New route within about 10 s or a clear message; guidance keeps going | Not run | Not run |
+| R-8 | PRIV-001 | `aapt dump permissions <apk>` | No `RECORD_AUDIO` | Not run | Not run |
+| R-9 | SEC-002 | `adb shell am start -a android.intent.action.VIEW -d "manus265420090014141://oauth/callback?code=x"` | Opens NEXORA's not-found screen; no login, no network call to a Manus host | Route still present (fixed in WS-F) | Not run |
+| R-11 | BUG-010, BUG-011, BUG-012 | Simulate King's Cross to Tate Modern; then live GPS with the Android Auto DHU or lock-screen card | First instruction reads "Head <compass> on <road>" with a straight-ahead arrow, never "Head left/right onto"; the simulation banner, step list, car screen and lock-screen card all show the next turn and the distance to it, not the step being driven | Old wording and banner behaviour (fixed in WS-A) | Not run |
+| R-10 | UX-005, UX-009, UX-010 | Guidance X button; server waking while a sheet is open; first live start | X asks before ending; banner visible above sheets; no system permission dialog during guidance | Not run | Not run |
+
 ## Live GPS guidance and voice (added 2026-11-27)
 
 Status: **implemented, unverified for road use.** Verified so far only with mock GPS: 35 unit tests on the real
@@ -124,7 +157,7 @@ King's Cross → Tate Modern by car with provider routes, tap **Start live GPS g
 
 | # | Case | Expected | Result |
 |---|---|---|---|
-| LG-1 | Start live guidance, allow location | Banner "LIVE GPS · UNVERIFIED FOR ROAD USE", "Head left onto Euston Road" spoken | Mock web: pass. Device: not run |
+| LG-1 | Start live guidance, allow location | Banner "LIVE GPS · UNVERIFIED FOR ROAD USE", "Head <compass> on Euston Road" spoken, for example "Head west on Euston Road" (compass wording from WS-A, PR #10; e2bd944 and earlier said "Head left onto Euston Road") | Mock web: pass. Device: not run |
 | LG-2 | Deny location | Toast, stays in preview, simulation still offered | Not run |
 | LG-3 | Drive on route | Progress, distance and ETA fall; "In half a mile / 300 yards / Turn left onto Southwark Street" | Mock web: pass. Device: not run |
 | LG-4 | Detour GPX | "Off route. Finding a new route." after 3 fixes, new route from current position | Mock web: pass. Device: not run |
