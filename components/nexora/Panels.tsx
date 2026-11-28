@@ -567,7 +567,10 @@ export function Panels({
             </React.Fragment>
           ))}
         </View>
-        {n.results.length === 0 && !n.busy && (n.query || n.browsing) && (
+        {n.results.length === 0 &&
+          !n.busy &&
+          !n.error &&
+          (n.query || n.browsing) && (
           <View style={s.empty}>
             <Icon name="search" size={32} color={muted} />
             <Text style={[s.rowTitle, { color: ink }]}>

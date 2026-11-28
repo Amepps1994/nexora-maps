@@ -15,12 +15,20 @@ import {
 import type { AddressInfo } from "node:net";
 import type { Server } from "node:http";
 import { createApp } from "../server/_core/app";
-import { overpassUrls, DEFAULT_OVERPASS_URLS } from "../server/nexora/places";
+import {
+  overpassUrls,
+  DEFAULT_OVERPASS_URLS,
+  buildNearbyRequest,
+  placesFallbackDailyBudget,
+  resolvePlacesFallback,
+  type PlacesOptions,
+} from "../server/nexora/places";
 import {
   CHIP_CATEGORIES,
   PLACE_CATEGORIES,
   formatDistance,
   isPlaceCategory,
+  mapLocationIqNearby,
   mapOverpassElements,
   nearbyCell,
   nearestPlaces,
@@ -144,11 +152,123 @@ describe("shared places helpers", () => {
   });
 });
 
+// Shape of a LocationIQ Nearby reply (trimmed): lat/lon are strings.
+const locationIqReply = [
+  {
+    place_id: "331",
+    osm_type: "way",
+    osm_id: "4256245",
+    lat: "51.5076",
+    lon: "-0.0994",
+    class: "tourism",
+    type: "museum",
+    name: "Tate Modern",
+    display_name: "Tate Modern, Bankside, London",
+    address: { name: "Tate Modern", road: "Bankside", city: "London" },
+    distance: 12,
+  },
+  {
+    place_id: "332",
+    osm_type: "node",
+    osm_id: "111",
+    lat: "51.5194",
+    lon: "-0.127",
+    class: "tourism",
+    type: "museum",
+    name: "",
+    display_name: "British Museum, Great Russell Street, London",
+    address: { suburb: "Bloomsbury" },
+  },
+  { place_id: "333", lat: "x", lon: "y", name: "Broken" },
+  { place_id: "334", lat: "51.5", lon: "-0.1" }, // no name at all
+];
+
+const LIQ_ENV = {
+  NEXORA_GEOCODER_PROVIDER: "locationiq",
+  NEXORA_GEOCODER_KEY: "pk.test-key",
+};
+
+describe("LocationIQ Nearby fallback helpers", () => {
+  it("is configured only with a LocationIQ key, and can be switched off", () => {
+    expect(resolvePlacesFallback({})).toBeNull();
+    expect(
+      resolvePlacesFallback({ ...LIQ_ENV, NEXORA_PLACES_FALLBACK: "off" }),
+    ).toBeNull();
+    expect(
+      resolvePlacesFallback({
+        NEXORA_GEOCODER_URL: "https://geo.example/search",
+        NEXORA_GEOCODER_KEY: "k",
+      }),
+    ).toBeNull();
+    const fb = resolvePlacesFallback(LIQ_ENV)!;
+    expect(fb.base.toString()).toBe("https://eu1.locationiq.com/v1/nearby");
+    expect(fb.attribution).toMatch(/LocationIQ/);
+  });
+
+  it("builds a bounded nearby request for the category", () => {
+    const url = new URL(
+      buildNearbyRequest(resolvePlacesFallback(LIQ_ENV)!, "food", [
+        -0.13, 51.505,
+      ]),
+    );
+    expect(url.searchParams.get("tag")).toBe(
+      "amenity:restaurant,amenity:cafe,amenity:fast_food,amenity:pub",
+    );
+    expect(url.searchParams.get("radius")).toBe("1200");
+    expect(url.searchParams.get("limit")).toBe("50");
+    expect(url.searchParams.get("lat")).toBe("51.505");
+    expect(url.searchParams.get("lon")).toBe("-0.13");
+  });
+
+  it("keeps a separate daily budget under the free plan", () => {
+    expect(placesFallbackDailyBudget({})).toBe(800);
+    expect(
+      placesFallbackDailyBudget({ NEXORA_PLACES_FALLBACK_DAILY_BUDGET: "50" }),
+    ).toBe(50);
+    expect(
+      placesFallbackDailyBudget({ NEXORA_PLACES_FALLBACK_DAILY_BUDGET: "-1" }),
+    ).toBe(800);
+  });
+
+  it("maps nearby results like Overpass elements", () => {
+    const entries = mapLocationIqNearby("culture", locationIqReply);
+    expect(entries.map((e) => e.name)).toEqual([
+      "Tate Modern",
+      "British Museum",
+    ]);
+    expect(entries[0]).toMatchObject({
+      id: "osm-way-4256245",
+      coordinate: [-0.0994, 51.5076],
+      category: "Culture",
+      kind: "Museum",
+      area: "Bankside",
+    });
+    expect(entries[1]).toMatchObject({
+      id: "osm-node-111",
+      area: "Bloomsbury",
+    });
+    expect(() => mapLocationIqNearby("culture", { error: "x" })).toThrow(
+      TypeError,
+    );
+  });
+});
+
+/** A reply that never arrives: rejects only when the request is aborted. */
+const hang = (init?: RequestInit) =>
+  new Promise<Response>((_, reject) => {
+    init?.signal?.addEventListener("abort", () =>
+      reject(new DOMException("aborted", "AbortError")),
+    );
+  });
+
 describe("/api/nexora/places", () => {
   const realFetch = globalThis.fetch;
   const servers: Server[] = [];
   let upstream: { url: string; body: string }[] = [];
-  let reply: (url: string) => Response | Promise<Response> = () =>
+  let reply: (
+    url: string,
+    init?: RequestInit,
+  ) => Response | Promise<Response> = () =>
     new Response(JSON.stringify(overpassReply), { status: 200 });
 
   beforeAll(() => {
@@ -157,7 +277,7 @@ describe("/api/nexora/places", () => {
         const url = String(input instanceof Request ? input.url : input);
         if (url.startsWith("http://127.0.0.1")) return realFetch(input, init);
         upstream.push({ url, body: String(init?.body ?? "") });
-        return reply(url);
+        return reply(url, init);
       },
     );
   });
@@ -170,8 +290,10 @@ describe("/api/nexora/places", () => {
     await Promise.all(servers.map((s) => new Promise((r) => s.close(r))));
   });
 
-  async function listen() {
-    const s = createApp({ places: { spacingMs: 0, env: {} } }).listen(0);
+  async function listen(places: PlacesOptions = {}) {
+    const s = createApp({
+      places: { spacingMs: 0, fallbackSpacingMs: 0, env: {}, ...places },
+    }).listen(0);
     await new Promise<void>((r) => s.once("listening", r));
     servers.push(s);
     const base = `http://127.0.0.1:${(s.address() as AddressInfo).port}`;
@@ -250,6 +372,86 @@ describe("/api/nexora/places", () => {
       "/api/nexora/places?category=stations&lat=51.5&lon=-0.1",
     );
     expect(r.status).toBe(502);
+    warn.mockRestore();
+  });
+
+  it("gives up on a hanging instance after its own time slot", async () => {
+    const call = await listen({ attemptMs: 150, budgetMs: 2000 });
+    reply = (url, init) =>
+      url === DEFAULT_OVERPASS_URLS[0]
+        ? hang(init)
+        : new Response(JSON.stringify(overpassReply), { status: 200 });
+    const started = Date.now();
+    const r = await call("/api/nexora/places?category=culture&lat=51.5&lon=-0.1");
+    expect(r.status).toBe(200);
+    expect(Date.now() - started).toBeLessThan(1500);
+    expect(upstream.map((u) => u.url)).toEqual(DEFAULT_OVERPASS_URLS);
+  });
+
+  it("answers from LocationIQ Nearby when Overpass is down", async () => {
+    const call = await listen({ env: LIQ_ENV, attemptMs: 100, budgetMs: 3000 });
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    reply = (url, init) =>
+      url.includes("locationiq.com")
+        ? new Response(JSON.stringify(locationIqReply), { status: 200 })
+        : url === DEFAULT_OVERPASS_URLS[0]
+          ? new Response("bad gateway", { status: 502 })
+          : hang(init);
+    const r = await call(
+      "/api/nexora/places?category=culture&lat=51.5194&lon=-0.1269",
+    );
+    expect(r.status).toBe(200);
+    const body = await r.json();
+    expect(body.attribution).toMatch(/LocationIQ/);
+    expect(body.places[0].name).toBe("British Museum");
+    const liq = upstream.find((u) => u.url.includes("locationiq.com"))!;
+    expect(new URL(liq.url).pathname).toBe("/v1/nearby");
+    // The fallback is logged without the key or the caller's position.
+    const logged = warn.mock.calls.map((c) => String(c[0])).join("\n");
+    expect(logged).toContain("provider_fallback");
+    expect(logged).not.toContain("pk.test-key");
+    expect(logged).not.toContain("51.5");
+    // Cached with its own attribution.
+    const again = await (
+      await call("/api/nexora/places?category=culture&lat=51.5195&lon=-0.1268")
+    ).json();
+    expect(again.attribution).toMatch(/LocationIQ/);
+    expect(
+      upstream.filter((u) => u.url.includes("locationiq.com")),
+    ).toHaveLength(1);
+    warn.mockRestore();
+  });
+
+  it("treats LocationIQ's 404 as nothing nearby", async () => {
+    const call = await listen({ env: LIQ_ENV });
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    reply = (url) =>
+      url.includes("locationiq.com")
+        ? new Response(JSON.stringify({ error: "No results" }), { status: 404 })
+        : new Response("down", { status: 503 });
+    const r = await call("/api/nexora/places?category=parking&lat=51.5&lon=-0.1");
+    expect(r.status).toBe(200);
+    expect((await r.json()).places).toEqual([]);
+    warn.mockRestore();
+  });
+
+  it("stops using the fallback when its daily budget is spent", async () => {
+    const call = await listen({
+      env: { ...LIQ_ENV, NEXORA_PLACES_FALLBACK_DAILY_BUDGET: "1" },
+    });
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    reply = (url) =>
+      url.includes("locationiq.com")
+        ? new Response(JSON.stringify(locationIqReply), { status: 200 })
+        : new Response("down", { status: 503 });
+    expect(
+      (await call("/api/nexora/places?category=food&lat=51.5&lon=-0.1")).status,
+    ).toBe(200);
+    const r = await call("/api/nexora/places?category=parks&lat=51.5&lon=-0.1");
+    expect(r.status).toBe(503);
+    expect(
+      upstream.filter((u) => u.url.includes("locationiq.com")),
+    ).toHaveLength(1);
     warn.mockRestore();
   });
 });
