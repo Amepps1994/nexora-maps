@@ -24,13 +24,17 @@ import { DEMO_PLACES } from "@/shared/nexora/fixtures";
 import { distanceLabel, durationLabel } from "@/shared/nexora/domain";
 import { StepList } from "./StepList";
 import { liveAckRequired, saveLiveAck } from "./live-ack";
+import { requestGuidanceNotifications } from "@/lib/car/lock-screen-guidance";
 import {
   a11yColors,
   backAction,
+  endButtonAction,
   nextAnnouncement,
+  nextStepAnnouncement,
   serverBanner,
   shouldAutoOpenOnboarding,
   stepAnnouncement,
+  stepIdentity,
 } from "./screen-logic";
 
 const LIVE_LABEL: Record<string, string> = {
@@ -131,12 +135,18 @@ export default function NexoraApp() {
   const liveUi = {
     ackOpen: liveAckOpen,
     requestLive: async () => {
-      if (await liveAckRequired()) setLiveAckOpen(true);
-      else n.start("live");
+      if (await liveAckRequired()) {
+        setLiveAckOpen(true);
+        return;
+      }
+      // UX-010: any notification prompt appears before guidance starts.
+      await requestGuidanceNotifications("live-start", n.active);
+      n.start("live");
     },
     acceptLive: async () => {
-      setLiveAckOpen(false);
       await saveLiveAck();
+      await requestGuidanceNotifications("live-ack", n.active);
+      setLiveAckOpen(false);
       n.start("live");
     },
     cancelLive: () => setLiveAckOpen(false),
@@ -202,15 +212,25 @@ export default function NexoraApp() {
     return () => sub.remove();
   }, []);
 
-  // A11Y-001: announce each new step once to screen readers when voice
-  // guidance is off, and every guidance event (off route, GPS loss).
+  // A11Y-001 / A11Y-006: announce each new step once to screen readers when
+  // voice guidance is off, keyed on the step (route id + index) so distance
+  // updates on every GPS fix or tick stay quiet; and every guidance event
+  // (off route, GPS loss).
+  const stepKey = n.active ? stepIdentity(n.route, n.step) : "";
   const stepText = n.active ? stepAnnouncement(n.step, formatDistance) : "";
-  const lastStepText = useRef("");
+  const lastStepKey = useRef("");
   useEffect(() => {
-    const say = nextAnnouncement(lastStepText.current, stepText, !n.muted);
-    lastStepText.current = stepText;
+    const say = nextStepAnnouncement(
+      lastStepKey.current,
+      stepKey,
+      stepText,
+      !n.muted,
+    );
+    lastStepKey.current = stepKey;
     if (say) AccessibilityInfo.announceForAccessibility(say);
-  }, [stepText, n.muted]);
+    // stepText is read only when the key changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stepKey, n.muted]);
   const eventText = n.active
     ? n.event || (n.guidanceSource === "live" ? n.liveGuidance.event : "")
     : "";
@@ -225,6 +245,9 @@ export default function NexoraApp() {
 
   const [showSteps, setShowSteps] = useState(false);
   const server = serverBanner(n.serverState, n.online);
+  // UX-009: the map tools sit below the top area (search, chips and the
+  // server banner) so the banner always has its own slot.
+  const [topAreaHeight, setTopAreaHeight] = useState(0);
   return (
     <View style={[s.root, { backgroundColor: dark ? "#0B1220" : "#E9EEEB" }]}>
       <StatusBar style={dark ? "light" : "dark"} />
@@ -248,6 +271,7 @@ export default function NexoraApp() {
         <>
           <View
             pointerEvents="box-none"
+            onLayout={(e) => setTopAreaHeight(e.nativeEvent.layout.height)}
             style={[
               s.topArea,
               { top, left, width: desktop ? 424 : width - 32 },
@@ -389,7 +413,11 @@ export default function NexoraApp() {
                 right: desktop ? 26 : 16,
                 top: desktop
                   ? "42%"
-                  : Math.max(220, Math.min(height * 0.35, 300)),
+                  : Math.max(
+                      220,
+                      Math.min(height * 0.35, 300),
+                      topAreaHeight ? top + topAreaHeight + 12 : 0,
+                    ),
               },
             ]}
           >
@@ -669,7 +697,12 @@ export default function NexoraApp() {
                       ? "End live guidance"
                       : "End simulation"
                   }
-                  onPress={n.end}
+                  onPress={() => {
+                    // UX-005: live guidance asks first, like the back key.
+                    if (endButtonAction(n.guidanceSource) === "confirm")
+                      setConfirmEnd(true);
+                    else n.end();
+                  }}
                 />
               </View>
               {showSteps && (
