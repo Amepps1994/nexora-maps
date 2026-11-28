@@ -8,6 +8,7 @@ import { createCorsMiddleware } from "./cors";
 import { registerNexoraRoutes, type NexoraRouteOptions } from "../nexora/routes";
 import { registerTrafficRoutes } from "../nexora/traffic";
 import { registerOfflineRoutes } from "../nexora/offline";
+import { registerPlacesRoutes, type PlacesOptions } from "../nexora/places";
 
 /** Largest JSON body the API accepts. A route request with three stops is well under 1 kB. */
 export const JSON_BODY_LIMIT = "16kb";
@@ -67,7 +68,9 @@ function jsonErrors(err: any, _req: Request, res: Response, next: NextFunction) 
  * The API is anonymous: there are no accounts, sessions, cookies or file storage. The old
  * Manus OAuth, storage proxy and tRPC routes were removed (SEC-002); requests to them 404.
  */
-export function createApp(options: { routes?: NexoraRouteOptions } = {}): Express {
+export function createApp(
+  options: { routes?: NexoraRouteOptions; places?: PlacesOptions } = {},
+): Express {
   const app = express();
   app.disable("x-powered-by");
   app.set("trust proxy", trustProxyHops());
@@ -80,6 +83,7 @@ export function createApp(options: { routes?: NexoraRouteOptions } = {}): Expres
   registerNexoraRoutes(app, options.routes);
   registerTrafficRoutes(app);
   registerOfflineRoutes(app);
+  registerPlacesRoutes(app, options.places);
 
   app.get("/api/health", (_req, res) => {
     res.json({ ok: true, timestamp: Date.now() });
