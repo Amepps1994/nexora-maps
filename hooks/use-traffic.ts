@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AppState } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { getApiBaseUrl } from "@/constants/oauth";
+import { api, ApiError } from "@/lib/nexora-api";
 import {
   snapshotFreshness,
   type TrafficSnapshot,
@@ -42,27 +42,30 @@ export function useTraffic(online: boolean) {
 
   const refresh = useCallback(() => {
     const id = ++generation.current;
-    Promise.resolve()
-      .then(() => fetch(`${getApiBaseUrl()}/api/nexora/traffic`))
-      .then(async (r) => {
-        const body = await r.json().catch(() => ({}));
+    // Through the shared client (BUG-013): a reply marks the server awake, a timeout
+    // marks it waking and starts a warm-up, and the timeout follows the server state.
+    api
+      .json<Partial<TrafficSnapshot> & { status?: string }>(
+        "/api/nexora/traffic",
+      )
+      .then((body) => {
         if (id !== generation.current) return;
         setNow(new Date());
-        if (r.ok && Array.isArray(body.disruptions)) {
+        if (Array.isArray(body?.disruptions)) {
           setSnapshot(body as TrafficSnapshot);
           setStatus(
             body.status === "live" || body.status === "cached"
               ? body.status
               : "stale",
           );
-        } else {
-          setStatus(body.status === "disabled" ? "disabled" : "unavailable");
-        }
+        } else setStatus("unavailable");
       })
-      .catch(() => {
+      .catch((e: unknown) => {
         if (id !== generation.current) return;
         setNow(new Date());
-        setStatus("unavailable");
+        const body =
+          e instanceof ApiError ? (e.body as { status?: unknown } | undefined) : undefined;
+        setStatus(body?.status === "disabled" ? "disabled" : "unavailable");
       });
   }, []);
 
